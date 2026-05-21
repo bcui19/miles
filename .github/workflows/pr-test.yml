@@ -10,16 +10,6 @@ on:
         required: false
         type: boolean
         default: false
-      ci_megatron_pr:
-        description: 'Megatron-LM branch/commit (default: miles-main)'
-        required: false
-        type: string
-        default: 'miles-main'
-      ci_sglang_pr:
-        description: 'SGLang branch/commit (default: sglang-miles)'
-        required: false
-        type: string
-        default: 'sglang-miles'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -173,7 +163,6 @@ jobs:
     with:
       gpu_count: 8
       container_image: "radixark/miles:glm5"
-      skip_dependency_install: true
       execute_command: "python tests/ci/gpu_lock_exec.py --count 8 -- python tests/e2e/megatron/test_glm5_744b_a40b_4layer.py"
     secrets: inherit
 
