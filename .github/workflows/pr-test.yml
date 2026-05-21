@@ -25,6 +25,7 @@ jobs:
     with:
       gpu_count: 0
       cpu_runner: true
+      container_image: "radixark/miles:dev-submodule-test"  # TEMP — REMOVE BEFORE MERGE
       execute_command: "python tests/ci/run_suite.py --hw cpu --suite stage-a-fast"
     secrets: inherit
 
@@ -36,6 +37,7 @@ jobs:
     uses: ./.github/workflows/_run-ci.yml
     with:
       gpu_count: 8
+      container_image: "radixark/miles:dev-submodule-test"  # TEMP — REMOVE BEFORE MERGE
       execute_command: "pytest tests/e2e/fsdp/test_qwen3_4B_fsdp_true_on_policy.py -x -v"
     secrets: inherit
 
@@ -50,6 +52,7 @@ jobs:
     uses: ./.github/workflows/_run-ci.yml
     with:
       gpu_count: 1
+      container_image: "radixark/miles:dev-submodule-test"  # TEMP — REMOVE BEFORE MERGE
       execute_command: "python tests/ci/run_suite.py --hw cuda --suite stage-b-fast-1-gpu"
     secrets: inherit
 
@@ -62,6 +65,7 @@ jobs:
     uses: ./.github/workflows/_run-ci.yml
     with:
       gpu_count: 8
+      container_image: "radixark/miles:dev-submodule-test"  # TEMP — REMOVE BEFORE MERGE
       execute_command: "python tests/ci/run_suite.py --hw cuda --suite stage-b-sglang-8-gpu"
     secrets: inherit
 
@@ -74,6 +78,7 @@ jobs:
     uses: ./.github/workflows/_run-ci.yml
     with:
       gpu_count: 8
+      container_image: "radixark/miles:dev-submodule-test"  # TEMP — REMOVE BEFORE MERGE
       execute_command: "python tests/ci/run_suite.py --hw cuda --suite stage-b-short-8-gpu"
     secrets: inherit
 
@@ -86,6 +91,7 @@ jobs:
     uses: ./.github/workflows/_run-ci.yml
     with:
       gpu_count: 8
+      container_image: "radixark/miles:dev-submodule-test"  # TEMP — REMOVE BEFORE MERGE
       execute_command: "python tests/ci/run_suite.py --hw cuda --suite stage-c-fsdp-8-gpu"
     secrets: inherit
 
@@ -102,6 +108,7 @@ jobs:
     uses: ./.github/workflows/_run-ci.yml
     with:
       gpu_count: 8
+      container_image: "radixark/miles:dev-submodule-test"  # TEMP — REMOVE BEFORE MERGE
       execute_command: "python tests/ci/run_suite.py --hw cuda --suite stage-c-megatron-8-gpu --auto-partition-id ${{ matrix.partition_id }} --auto-partition-size 3"
     secrets: inherit
 
@@ -114,6 +121,7 @@ jobs:
     uses: ./.github/workflows/_run-ci.yml
     with:
       gpu_count: 8
+      container_image: "radixark/miles:dev-submodule-test"  # TEMP — REMOVE BEFORE MERGE
       execute_command: "python tests/ci/run_suite.py --hw cuda --suite stage-c-precision-8-gpu"
     secrets: inherit
 
@@ -126,6 +134,7 @@ jobs:
     uses: ./.github/workflows/_run-ci.yml
     with:
       gpu_count: 8
+      container_image: "radixark/miles:dev-submodule-test"  # TEMP — REMOVE BEFORE MERGE
       execute_command: "python tests/ci/run_suite.py --hw cuda --suite stage-c-ckpt-8-gpu"
     secrets: inherit
 
@@ -138,6 +147,7 @@ jobs:
     uses: ./.github/workflows/_run-ci.yml
     with:
       gpu_count: 8
+      container_image: "radixark/miles:dev-submodule-test"  # TEMP — REMOVE BEFORE MERGE
       execute_command: "python tests/ci/run_suite.py --hw cuda --suite stage-c-long-8-gpu"
     secrets: inherit
 
@@ -150,6 +160,7 @@ jobs:
     uses: ./.github/workflows/_run-ci.yml
     with:
       gpu_count: 8
+      container_image: "radixark/miles:dev-submodule-test"  # TEMP — REMOVE BEFORE MERGE
       execute_command: "python tests/ci/run_suite.py --hw cuda --suite stage-c-lora-8-gpu"
     secrets: inherit
 
@@ -186,5 +197,6 @@ jobs:
     uses: ./.github/workflows/_run-ci.yml
     with:
       gpu_count: 8
+      container_image: "radixark/miles:dev-submodule-test"  # TEMP — REMOVE BEFORE MERGE
       execute_command: "python tests/ci/run_suite.py --hw cuda --suite ${{ matrix.suite }}"
     secrets: inherit
