@@ -21,23 +21,12 @@ except ImportError:
     logging.warning("deep_ep is not installed, some functionalities may be limited.")
 
 try:
-    from megatron.bridge.models.qwen_vl.modelling_qwen3_vl.text_model import (
-        Qwen3VLMoETextRotaryEmbedding,
-        Qwen3VLTextRotaryEmbedding,
-    )
+    # Fix Qwen3-VL THD packed mRoPE positions (see qwen3_vl_packed_mrope).
+    from miles.backends.megatron_utils.qwen3_vl_packed_mrope import install_qwen3_vl_packed_mrope_patch
 
-    def patch_rotary_embedding(cls):
-        _original_forward = cls.forward
-
-        def _patched_forward(self, *args, packed_seq_params=None, **kwargs):
-            return _original_forward(self, *args, **kwargs)
-
-        cls.forward = _patched_forward
-
-    patch_rotary_embedding(Qwen3VLTextRotaryEmbedding)
-    patch_rotary_embedding(Qwen3VLMoETextRotaryEmbedding)
-except ImportError:
-    pass
+    install_qwen3_vl_packed_mrope_patch()
+except Exception as _e:  # best-effort; Qwen3-VL may be unavailable in some envs
+    logging.warning("miles Qwen3-VL THD packed mRoPE patch failed to load: %s", _e)
 
 try:
     import miles_plugins.megatron_bridge  # noqa: F401
