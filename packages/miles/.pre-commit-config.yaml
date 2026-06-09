@@ -34,9 +34,9 @@ repos:
     hooks:
       - id: isort
         args:
-          - "--profile=black"        # 常见：与 Black 对齐风格
-          - "--filter-files"         # 忽略已在 .gitignore 的文件
-        additional_dependencies: []  # 需要插件时在这里加
+          - "--profile=black"        # align style with black
+          - "--filter-files"         # ignore files in .gitignore
+        additional_dependencies: []  # Add plugins when needed
 
   - repo: https://github.com/psf/black
     rev: 24.3.0
