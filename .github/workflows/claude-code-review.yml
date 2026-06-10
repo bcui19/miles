@@ -1,0 +1,40 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+  id-token: write  # required by claude-code-action@v1 to mint a GitHub token via OIDC
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  claude-review:
+    name: Claude review
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude review
+        uses: anthropics/claude-code-action@v1
+        with:
+          # Uses a Claude subscription (Pro/Max) OAuth token rather than a
+          # metered Console API key. Generate it locally with `claude setup-token`
+          # and add it as the CLAUDE_CODE_OAUTH_TOKEN repo secret.
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Review this pull request for correctness bugs, security issues,
+            and clarity. Respect the repo's conventions (ruff/black/isort, the
+            ParallelState and load_hf_config/load_tokenizer rules enforced in
+            .pre-commit-config.yaml). Post findings as inline comments and keep
+            it concise — skip nits already caught by pre-commit.
+          claude_args: "--allowed-tools mcp__github_inline_comment__create_inline_comment,Bash(gh:*)"
