@@ -1,0 +1,3 @@
+[submodule "baseline-submodules/openevolve"]
+	path = baseline-submodules/openevolve
+	url = https://github.com/algorithmicsuperintelligence/openevolve
