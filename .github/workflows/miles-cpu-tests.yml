@@ -1,0 +1,124 @@
+name: miles CPU tests
+
+# Runs the miles CPU-only test suites (everything under packages/miles/tests/fast/)
+# on GitHub-hosted runners. This is a lean, CPU-only port of the run-cpu job in
+# packages/miles/.github/workflows/_run-ci.yml, adapted for the packages/miles
+# subtree. GPU stages are intentionally omitted (they need self-hosted runners,
+# a CI container image, and host-staged data — see that file's `run` job).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/miles/**'
+      - '.github/workflows/miles-cpu-tests.yml'
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'packages/miles/**'
+      - '.github/workflows/miles-cpu-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned dependency refs (the defaults baked into _run-ci.yml). Bump here when
+  # miles moves its CI to new sglang/Megatron branches.
+  SGLANG_REPO: sgl-project/sglang
+  SGLANG_REF: sglang-miles
+  MEGATRON_REPO: radixark/Megatron-LM
+  MEGATRON_REF: miles-main
+
+jobs:
+  cpu-tests:
+    name: ${{ matrix.suite }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [stage-a-cpu, stage-b-cpu]
+    defaults:
+      run:
+        # All miles tooling assumes the miles package root is the cwd.
+        working-directory: packages/miles
+    env:
+      # miles requires Python 3.11 (PEP 678 BaseException.add_note). Megatron-LM
+      # is surfaced via PYTHONPATH rather than pip-installed (its pyproject only
+      # exposes megatron.core, but miles imports from megatron.training).
+      PYTHONPATH: ${{ github.workspace }}/packages/miles:${{ github.workspace }}/packages/miles/Megatron-LM
+    steps:
+      - name: Free disk space
+        # Runs before checkout, so packages/miles does not exist yet.
+        working-directory: ${{ github.workspace }}
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          df -h
+
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+          protoc --version
+
+      - name: Checkout sglang
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          repository: ${{ env.SGLANG_REPO }}
+          ref: ${{ env.SGLANG_REF }}
+          path: packages/miles/sglang
+
+      - name: Checkout Megatron-LM
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          repository: ${{ env.MEGATRON_REPO }}
+          ref: ${{ env.MEGATRON_REF }}
+          path: packages/miles/Megatron-LM
+
+      - name: Install dependencies
+        env:
+          UV_SYSTEM_PYTHON: "1"
+        run: |
+          uv pip install -e sglang/python --no-deps
+          # Megatron-LM is surfaced via PYTHONPATH (see job env); no pip install.
+          uv pip install -r requirements.txt
+          uv pip install -e . --no-deps
+          # sglang is installed --no-deps above, but miles' import chain loads
+          # many sglang modules. Install sglang's pure-python runtime deps
+          # upfront; skip GPU-only ones (cuda-python, flashinfer, flash-attn-4,
+          # sglang-kernel, torchao, torchcodec, torch_memory_saver, quack-kernels,
+          # nvidia-cutlass-dsl, apache-tvm-ffi, kernels, decord2, av).
+          # torch itself comes via accelerate (in requirements.txt).
+          uv pip install \
+            IPython aiohttp anthropic build compressed-tensors einops fastapi \
+            gguf interegular jsonschema llguidance mistral_common modelscope \
+            msgspec ninja nvidia-ml-py openai openai-harmony orjson outlines \
+            partial_json_parser prometheus-client psutil py-spy pydantic \
+            python-multipart pyzmq scipy sentencepiece setproctitle soundfile \
+            tiktoken timm torchvision uvicorn uvloop watchfiles xgrammar
+          # sglang's memory_pool_host.py unconditionally imports sgl_kernel on
+          # non-NPU/XPU/MPS hardware. sgl_kernel is GPU-only — install a local
+          # stub so imports succeed at module load.
+          uv pip install tests/ci/cpu_stubs
+
+      - name: Resolve suite plan
+        run: python tests/ci/run_suite.py --hw cpu --suite ${{ matrix.suite }} --match-all-labels --list-only
+
+      - name: Run tests
+        run: python tests/ci/run_suite.py --hw cpu --suite ${{ matrix.suite }} --match-all-labels

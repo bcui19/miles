@@ -18,5 +18,5 @@ ring_flash_attn; platform_system == "Linux"
 sglang-router>=0.2.3
 tensorboard
 torchft-nightly==2026.4.3; platform_system == "Linux"
-transformers
+transformers==5.10.2  # pinned: 5.11+ adds native deepseek_v32 support, which trips miles' register_hf_config_aliases guard
 wandb
