@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "NanoRollout: A Lightweight Infra for Digital Agent Rollout at Scale"
+date-released: 2026-05-12
+authors:
+  - given-names: "Junli"
+    family-names: "Wang"
+  - given-names: "Zhoujun"
+    family-names: "Cheng"
+  - given-names: "Yuxuan"
+    family-names: "Zhang"
+  - given-names: "Shibo"
+    family-names: "Hao"
+  - given-names: "Yao"
+    family-names: "Tang"
+  - given-names: "Zhiting"
+    family-names: "Hu"
+  - given-names: "Prithviraj"
+    family-names: "Ammanabrolu"
+  - given-names: "Hao"
+    family-names: "Zhang"
+repository-code: https://github.com/cocoa-org/NanoRollout
+url: https://github.com/cocoa-org/NanoRollout

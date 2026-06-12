@@ -1,0 +1,22 @@
+# Root-level formatter/linter config.
+#
+# pre-commit runs `pre-commit run --all-files` from the repo root. black and
+# isort resolve a SINGLE config per invocation, derived from the common
+# ancestor of all input files. With more than one package present
+# (packages/miles + packages/nanorollout) that common ancestor is the repo
+# root. Without a pyproject.toml here, black would fall back to its built-in
+# 88-column default and reformat packages/miles (which is formatted to 119),
+# even though nothing in miles changed.
+#
+# These values mirror packages/miles/pyproject.toml so the repo-wide run is a
+# no-op for miles. (On `main`, where miles is the only package, black resolves
+# to packages/miles/pyproject.toml directly and never consults this file.)
+[tool.black]
+line-length = 119
+
+[tool.isort]
+profile = "black"
+line_length = 119
+
+[tool.ruff]
+line-length = 320

@@ -1,0 +1,55 @@
+name: NanoRollout Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/nanorollout/**'
+      - '.github/workflows/nanorollout-tests.yml'
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'packages/nanorollout/**'
+      - '.github/workflows/nanorollout-tests.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    name: pytest (nanorollout)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/nanorollout
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install nanorollout + test tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest
+
+      # Importing every test module catches broken imports across the whole
+      # suite (e.g. a test referencing a removed adapter) without executing
+      # anything that needs Docker or network.
+      - name: Verify the full test suite imports cleanly
+        run: pytest tests --collect-only -q
+
+      # Run the docker-free unit tests for real. The SWE "oracle" tests and the
+      # server integration tests require Docker / a live server and a
+      # NANOROLLOUT_RUN_*_ORACLE env flag, so they are intentionally not run here.
+      - name: Run unit tests
+        run: pytest tests/core/test_runners.py -q
