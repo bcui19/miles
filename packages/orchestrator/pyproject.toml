@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "orchestrator"
+dynamic = ["version"]
+description = "OpenEvolve-compatible orchestration logic for NanoRollout"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+authors = [{ name = "nanorollout team" }]
+dependencies = [
+  "dacite>=1.9.2",
+  "httpx",
+  "numpy",
+  "openai>=2.6.1",
+  "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest", "pytest-asyncio", "pytest-timeout", "fastapi", "uvicorn", "tiktoken"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["orchestrator*"]
+
+[tool.setuptools.dynamic]
+version = { attr = "orchestrator._version.__version__" }
