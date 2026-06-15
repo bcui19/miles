@@ -20,6 +20,11 @@ class LegacyRolloutFnAdapter:
         self.data_source = input.data_source
         self.fn = fn
 
+    def __getattr__(self, name):
+        # transparent to attribute-based plugin protocols (add_arguments,
+        # training_started/weights_synced, ...) on the wrapped function
+        return getattr(self.fn, name)
+
     def __call__(self, input: RolloutFnInput) -> RolloutFnOutput:
         output = self.fn(self.args, input.rollout_id, self.data_source, evaluation=input.evaluation)
 

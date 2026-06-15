@@ -71,6 +71,7 @@ async def train(args):
             await rollout_manager.eval.remote(rollout_id)
 
         rollout_data_ref = await rollout_manager.generate.remote(rollout_id)
+        await rollout_manager.training_started.remote(rollout_id)
 
         if args.offload_rollout:
             offload_tags = [GPU_MEMORY_TYPE_CUDA_GRAPH]
@@ -97,6 +98,7 @@ async def train(args):
         await actor_model.update_weights()
         if args.offload_rollout:
             await rollout_manager.onload_kv.remote()
+        await rollout_manager.weights_synced.remote(rollout_id)
 
         if should_run_periodic_action(rollout_id, args.eval_interval, num_rollout_per_epoch):
             await rollout_manager.eval.remote(rollout_id)

@@ -161,6 +161,22 @@ class RolloutManager:
 
         return data, metadata, metrics
 
+    # -------------------------- lifecycle hooks -----------------------------
+    # Forwarded from train.py for rollout functions that buffer externally
+    # submitted groups (miles.rollout.train_service.train_buffer): they ack
+    # blocking /v1/train requests on train start and weight sync. No-ops for
+    # rollout functions that do not implement them.
+
+    def training_started(self, rollout_id):
+        hook = getattr(self.generate_rollout, "training_started", None)
+        if hook is not None:
+            hook(rollout_id)
+
+    def weights_synced(self, rollout_id):
+        hook = getattr(self.generate_rollout, "weights_synced", None)
+        if hook is not None:
+            hook(rollout_id)
+
     # -------------------------- checkpointing -----------------------------
 
     def save(self, rollout_id):
