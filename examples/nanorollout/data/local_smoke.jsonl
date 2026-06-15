@@ -1,0 +1,2 @@
+{"prompt": "Use the local shell to solve this tiny smoke task. Return the word PASS.", "metadata": {"dataset": "local", "split": "train", "instance_id": "local-smoke-0", "runner": "oh-core", "agent": "oh-core", "task": "swe", "env_type": "local"}}
+{"prompt": "Use the local shell to solve this second tiny smoke task. Return the word PASS.", "metadata": {"dataset": "local", "split": "train", "instance_id": "local-smoke-1", "runner": "oh-core", "agent": "oh-core", "task": "swe", "env_type": "local"}}
