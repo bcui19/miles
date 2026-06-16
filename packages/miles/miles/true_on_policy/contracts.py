@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from .schema import (
     QWEN3_DENSE_TRUE_ON_POLICY_V1_SCHEMA,
@@ -51,7 +52,7 @@ class TrueOnPolicyContract:
         *,
         train_backend: str,
         sglang_target: str,
-    ) -> dict[str, object]:
+    ) -> dict[str, Any]:
         uses_megatron = train_backend == "megatron"
         uses_tp_invariant_rollout = sglang_target == "fsdp_tp"
         return {
