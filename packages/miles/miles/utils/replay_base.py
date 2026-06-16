@@ -53,6 +53,9 @@ class Replay:
 class BaseReplayManager:
     name: str = ""
     filename: str = ""
+    # Overridden by subclasses; declared here so base methods can reference them.
+    enable_check_replay_result: bool = False
+    replay_check_max_mismatch_fraction: float = 1e-2
     replay_check_min_overlap_ratio = 0.0  # 0.0 = mismatch only on zero overlap
     # True when replayed indices are token/KV positions (indexer): rebase the
     # per-sample 0-based rollout indices onto the packed training sequence.
@@ -124,6 +127,7 @@ class BaseReplayManager:
                 return old_topk_fn(scores, topk, *args, **kwargs)
 
             elif stage == "record":
+                assert replay is not None
                 result = old_topk_fn(scores, topk, *args, **kwargs)
                 if return_probs:
                     probs, top_indices = result
@@ -133,9 +137,11 @@ class BaseReplayManager:
                 return result
 
             elif stage == "replay_forward":
+                assert replay is not None
                 return _get_replay_result(replay.pop_forward(), scores, topk, *args, **kwargs)
 
             elif stage == "replay_backward":
+                assert replay is not None
                 return _get_replay_result(replay.pop_backward(), scores, topk, *args, **kwargs)
 
             else:

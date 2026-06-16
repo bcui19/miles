@@ -1744,8 +1744,9 @@ def get_miles_extra_args_provider(add_custom_arguments=None):
                     fn = load_function(path)
                 except (ModuleNotFoundError, ValueError):
                     continue
-                if fn is not None and callable(getattr(fn, "add_arguments", None)):
-                    fn.add_arguments(parser)
+                add_args = getattr(fn, "add_arguments", None)
+                if fn is not None and callable(add_args):
+                    add_args(parser)
             return parser
 
         def add_sglang_tp_size():
@@ -1808,9 +1809,10 @@ def parse_args(add_custom_arguments=None):
 
     backend = parse_args_train_backend()
     if backend == "megatron":
-        from miles.backends.megatron_utils.arguments import parse_args as megatron_parse_args
+        from miles.backends.megatron_utils.arguments import (
+            parse_args as megatron_parse_args,  # pyright: ignore[reportAttributeAccessIssue]
+        )
         from miles.backends.megatron_utils.arguments import set_default_megatron_args
-        from miles.backends.megatron_utils.arguments import validate_args as megatron_validate_args
 
         args = megatron_parse_args(extra_args_provider=add_miles_arguments)
         if args.hf_checkpoint:
@@ -1843,6 +1845,10 @@ def parse_args(add_custom_arguments=None):
     miles_validate_args(args)
 
     if backend == "megatron":
+        from miles.backends.megatron_utils.arguments import (
+            validate_args as megatron_validate_args,  # pyright: ignore[reportAttributeAccessIssue]
+        )
+
         megatron_validate_args(args)
 
         # always use varlen

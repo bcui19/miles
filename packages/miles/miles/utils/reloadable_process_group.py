@@ -152,6 +152,7 @@ class ReloadableProcessGroup(torch.distributed.ProcessGroup):
         reloadable_groups = ReloadableProcessGroup.GROUPS.get(pid, [])
         logger.info(f"Reloading {len(reloadable_groups)} process groups in pid {pid}")
         old_new_group = old_new_group_dict.get(pid)
+        assert old_new_group is not None, f"no new_group factory for pid {pid}"
         for reloadable_group in reloadable_groups:
             if reloadable_group.group is not None:
                 continue

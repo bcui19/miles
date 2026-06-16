@@ -131,7 +131,7 @@ def _initialize_megatron(args: argparse.Namespace) -> None:
 
 
 def _build_and_load_model(args: argparse.Namespace, script: WorkerScriptArgs) -> list[Any]:
-    model_provider: Callable[..., Any] = get_model_provider_func(args, role=script.role)
+    model_provider: Callable[..., Any] = get_model_provider_func(args, role=script.role)  # type: ignore[arg-type]
     model: list[Any] = get_model(model_provider, ModelType.encoder_or_decoder)
 
     if args.load is not None:

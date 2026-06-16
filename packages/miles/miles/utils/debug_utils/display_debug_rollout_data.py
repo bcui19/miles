@@ -6,7 +6,7 @@ from typing import Annotated
 import torch
 import typer
 
-from miles.ray.rollout import compute_perf_metrics_from_samples
+from miles.ray.rollout.metrics import _compute_perf_metrics_from_samples
 from miles.utils.types import Sample
 
 _WHITELIST_KEYS = [
@@ -27,7 +27,7 @@ def main(
     load_debug_rollout_data: Annotated[str, typer.Option()],
     show_metrics: bool = True,
     show_samples: bool = True,
-    category: list[str] = None,
+    category: list[str] | None = None,
 ):
     if category is None:
         category = ["train", "eval"]
@@ -47,7 +47,7 @@ def main(
                 log_reward_category=None,
             )
             sample_objects = [Sample.from_dict(s) for s in sample_dicts]
-            metrics = compute_perf_metrics_from_samples(args, sample_objects)
+            metrics = _compute_perf_metrics_from_samples(args, sample_objects, rollout_time=0.0)
             print("metrics", metrics)
 
         if show_samples:

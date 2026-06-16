@@ -8,6 +8,7 @@ except ImportError:
 
 @contextmanager
 def patch_megatron_model(model):
+    assert unwrap_model is not None, "megatron unwrap_model is required"
     unwrapped_model = unwrap_model(model)[0]
     model_config = unwrapped_model.config
     attribute_was_added = False

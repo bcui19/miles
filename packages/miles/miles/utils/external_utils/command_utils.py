@@ -202,7 +202,7 @@ def _parse_extra_env_vars(text: str):
 
 def check_has_nvlink():
     output = exec_command("nvidia-smi topo -m 2>/dev/null | grep -o 'NV[0-9][0-9]*' | wc -l", capture_output=True)
-    return int(output) > 0
+    return int(output or 0) > 0
 
 
 def get_default_wandb_args(test_file: str, run_name_prefix: str | None = None, run_id: str | None = None):
@@ -210,10 +210,10 @@ def get_default_wandb_args(test_file: str, run_name_prefix: str | None = None, r
         print("Skip wandb configuration since WANDB_API_KEY is not found")
         return ""
 
-    test_file = Path(test_file)
-    test_name = test_file.stem
+    test_path = Path(test_file)
+    test_name = test_path.stem
     if len(test_name) < 6:
-        test_name = f"{test_file.parent.name}_{test_name}"
+        test_name = f"{test_path.parent.name}_{test_name}"
 
     wandb_run_name = run_id or create_run_id()
     if (x := os.environ.get("GITHUB_COMMIT_NAME")) is not None:

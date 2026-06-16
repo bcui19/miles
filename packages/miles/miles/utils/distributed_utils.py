@@ -37,13 +37,13 @@ def get_gloo_group():
 # Copy from pytorch to allow creating multiple main groups.
 # https://github.com/pytorch/pytorch/blob/main/torch/distributed/distributed_c10d.py
 def init_process_group(
-    backend: str | Backend = None,
+    backend: str | Backend | None = None,
     init_method: str | None = None,
     timeout: timedelta | None = None,
     world_size: int = -1,
     rank: int = -1,
     store: Store | None = None,
-    group_name: str = None,
+    group_name: str | None = None,
     pg_options: Any | None = None,
 ):
     assert (store is None) or (init_method is None), "Cannot specify both init_method and store."
@@ -66,6 +66,7 @@ def init_process_group(
     if store is None:
         rendezvous_iterator = rendezvous(init_method, rank, world_size, timeout=timeout)
         store, rank, world_size = next(rendezvous_iterator)
+        assert store is not None
         store.set_timeout(timeout)
 
         # Use a PrefixStore to avoid accidental overrides of keys used by

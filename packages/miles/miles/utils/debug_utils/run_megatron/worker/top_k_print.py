@@ -98,7 +98,7 @@ def _print_top_predictions_for_rank(
             print(f"pos[{pos:3d}] {input_str!r:12s} -> {preds}")
 
 
-def _decode_token(tokenizer: object, *, token_id: int) -> str:
+def _decode_token(tokenizer: Any, *, token_id: int) -> str:
     return tokenizer.decode([token_id]) if tokenizer else f"t{token_id}"
 
 

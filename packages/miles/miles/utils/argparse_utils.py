@@ -78,7 +78,7 @@ class DataclassArgparseBridge(Generic[T]):
     def register_on_parser(self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         group: argparse._ArgumentGroup = parser.add_argument_group(self._group_title)
 
-        for field in dataclasses.fields(self._cls):
+        for field in dataclasses.fields(self._cls):  # type: ignore[arg-type]
             flag: str = self._flag(field.name)
             dest: str = self._dest(field.name)
             tp: type = self._hints[field.name]
@@ -110,7 +110,7 @@ class DataclassArgparseBridge(Generic[T]):
 
     def from_namespace(self, namespace: argparse.Namespace) -> T:
         kwargs: dict[str, object] = {}
-        for field in dataclasses.fields(self._cls):
+        for field in dataclasses.fields(self._cls):  # type: ignore[arg-type]
             kwargs[field.name] = getattr(namespace, self._dest(field.name))
         return self._cls(**kwargs)  # type: ignore[call-arg]
 

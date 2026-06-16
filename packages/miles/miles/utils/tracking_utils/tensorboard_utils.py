@@ -42,6 +42,7 @@ class _TensorboardAdapter(metaclass=SingletonMeta):
         tensorboard_dir = os.environ.get("TENSORBOARD_DIR", f"tensorboard_log/{tb_project_name}/{tb_experiment_name}")
         os.makedirs(tensorboard_dir, exist_ok=True)
         logger.info(f"Saving tensorboard log to {tensorboard_dir}.")
+        assert SummaryWriter is not None, "tensorboard is required (pip install tensorboard)"
         self._writer = SummaryWriter(tensorboard_dir)
 
     def log(self, data, step):
@@ -51,9 +52,11 @@ class _TensorboardAdapter(metaclass=SingletonMeta):
             data (dict): Dictionary containing metric names and values
             step (int): Current step/epoch number
         """
+        assert self._writer is not None
         for key in data:
             self._writer.add_scalar(key, data[key], step)
 
     def finish(self):
         """Close the tensorboard writer"""
+        assert self._writer is not None
         self._writer.close()

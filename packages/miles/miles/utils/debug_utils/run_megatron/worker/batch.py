@@ -34,7 +34,7 @@ def prepare_batch(
     if cp_size > 1:
         from miles.backends.training_utils.cp_utils import slice_with_cp
 
-        cp_kwargs: dict[str, object] = dict(
+        cp_kwargs: dict[str, Any] = dict(
             pad_value=0,
             parallel_state=SimpleNamespace(cp=SimpleNamespace(rank=cp_rank, size=cp_size)),
             qkv_format="bshd",

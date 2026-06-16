@@ -5,6 +5,7 @@ import uuid
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -46,7 +47,7 @@ class MockSGLangServer:
         model_name: str,
         process_fn: ProcessFn,
         host: str,
-        port: int,
+        port: int | None = None,
         latency: float = 0.0,
         chat_template_path: str | None = None,
     ):
@@ -121,7 +122,7 @@ class MockSGLangServer:
         prompt_tokens = len(input_ids)
         completion_tokens = len(output_ids)
 
-        finish_reason_dict = {"type": process_result.finish_reason}
+        finish_reason_dict: dict[str, Any] = {"type": process_result.finish_reason}
         if process_result.finish_reason == "length":
             finish_reason_dict["length"] = completion_tokens
 

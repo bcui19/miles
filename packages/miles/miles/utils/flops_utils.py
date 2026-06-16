@@ -75,6 +75,7 @@ def calculate_fwd_flops(
     total_flops = 0
 
     dense_ffn = args.ffn_hidden_size
+    moe_ffn = 0
     if args.num_experts is None:
         num_dense_layers = args.num_layers
         num_moe_layers = 0

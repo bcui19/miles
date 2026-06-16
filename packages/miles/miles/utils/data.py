@@ -4,6 +4,7 @@ import logging
 import os
 import random
 import re
+from typing import Any
 
 import numpy as np
 import ray
@@ -52,6 +53,7 @@ def read_file(path):
             raise ImportError("pyarrow is required for parquet support")
 
         def parquet_reader(p):
+            assert pq is not None  # guarded above; narrow for the closure
             pf = pq.ParquetFile(p)
 
             for batch in pf.iter_batches():
@@ -82,13 +84,13 @@ def _parse_generalized_path(s: str):
 
 def filter_long_prompt(origin_samples: list[Sample], tokenizer, processor, max_length: int | None) -> list[Sample]:
     if max_length is None:
-        return False
+        return origin_samples
 
     if not isinstance(origin_samples[0].prompt, str):
         logger.warning(
             "Skipping max_length check for list prompt. Set apply_chat_template=True to enable length filtering."
         )
-        return False
+        return origin_samples
 
     if processor:
         filtered_samples = []
@@ -114,8 +116,8 @@ def filter_long_prompt(origin_samples: list[Sample], tokenizer, processor, max_l
     return filtered_samples
 
 
-def _build_messages(data: dict, prompt_key: str, as_conversation: bool, multimodal_keys: dict = None):
-    prompt = data.get(prompt_key)
+def _build_messages(data: dict, prompt_key: str, as_conversation: bool, multimodal_keys: dict | None = None) -> Any:
+    prompt: Any = data.get(prompt_key)
 
     if isinstance(prompt, str):
         # If prompt is a string and we don't apply chat template, return the prompt as is.
@@ -130,7 +132,7 @@ def _build_messages(data: dict, prompt_key: str, as_conversation: bool, multimod
         for type_name, data_key in multimodal_keys.items():
             mt = MultimodalTypes.get(type_name)
             if mt:
-                multimodals[mt.placeholder] = (mt, list(data.get(data_key)))
+                multimodals[mt.placeholder] = (mt, list(data.get(data_key) or []))
 
         pattern = "(" + "|".join(re.escape(p) for p in multimodals.keys()) + ")"
 
@@ -201,6 +203,7 @@ class Dataset:
                 assert isinstance(tools, list), f"tools must be a list, got {type(tools)} instead"
                 metadata["tools"] = tools
 
+            output_prompt: Any
             if apply_chat_template:
                 output_prompt = chat_template_utils.apply_chat_template(
                     prompt,

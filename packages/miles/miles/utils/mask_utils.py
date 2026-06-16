@@ -46,7 +46,7 @@ class MultiTurnLossMaskGenerator:
         return system_message_length, gen_token_length
 
     def gen_multi_turn_loss_mask_qwen(
-        self, messages: list[dict], tools: list[dict] = None
+        self, messages: list[dict], tools: list[dict] | None = None
     ) -> tuple[list[int], list[int]]:
         all_loss_masks = []
         all_token_ids = []
@@ -76,7 +76,7 @@ class MultiTurnLossMaskGenerator:
         return all_token_ids, all_loss_masks
 
     def gen_multi_turn_loss_mask_qwen3(
-        self, messages: list[dict], tools: list[dict] = None
+        self, messages: list[dict], tools: list[dict] | None = None
     ) -> tuple[list[int], list[int]]:
         all_loss_masks = []
         all_token_ids = []
@@ -113,7 +113,7 @@ class MultiTurnLossMaskGenerator:
         return all_token_ids, all_loss_masks
 
     def gen_multi_turn_loss_mask_distill_qwen(
-        self, messages: list[dict], tools: list[dict] = None
+        self, messages: list[dict], tools: list[dict] | None = None
     ) -> tuple[list[int], list[int]]:
         prompt = self.tokenizer.apply_chat_template(
             messages[:1], tokenize=False, add_generation_prompt=True, tools=tools
@@ -130,7 +130,7 @@ class MultiTurnLossMaskGenerator:
             loss_mask = [0] * len(token_ids)
         return token_ids, loss_mask
 
-    def get_loss_mask(self, messages: list[dict], tools: list[dict] = None) -> tuple[list[int], list[int]]:
+    def get_loss_mask(self, messages: list[dict], tools: list[dict] | None = None) -> tuple[list[int], list[int]]:
         if self.tokenizer_type == "qwen":
             if "<｜Assistant｜>" in self.tokenizer.get_added_vocab():
                 return self.gen_multi_turn_loss_mask_distill_qwen(messages, tools)
@@ -144,7 +144,7 @@ class MultiTurnLossMaskGenerator:
             raise ValueError(f"Unsupported tokenizer type: {self.tokenizer_type}")
 
     def get_loss_mask_with_multimodal_alignment(
-        self, messages: list[dict], input_ids: list[int], tools: list[dict] = None
+        self, messages: list[dict], input_ids: list[int], tools: list[dict] | None = None
     ) -> tuple[list[int], list[int]]:
         text = []
         for msg in messages:

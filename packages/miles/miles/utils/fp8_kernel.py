@@ -73,7 +73,6 @@ def blockwise_cast_to_fp8_triton(x: torch.Tensor, block_size=None) -> tuple[torc
         kwargs = {"BLOCK_M": BLOCK_M, "BLOCK_N": BLOCK_N, "num_warps": 8, "num_stages": 2}
     else:
         kwargs = {"BLOCK_M": BLOCK_M, "BLOCK_N": BLOCK_N, "num_warps": 1, "num_stages": 4}
-    _blockwise_cast_to_fp8_triton[grid](
-        x, y, s, *x.stride(), *y.stride(), *s.stride(), M, N, 1e-10, fp8_min, fp8_max, **kwargs
-    )
+    cast_kernel = _blockwise_cast_to_fp8_triton[grid]  # type: ignore[index]
+    cast_kernel(x, y, s, *x.stride(), *y.stride(), *s.stride(), M, N, 1e-10, fp8_min, fp8_max, **kwargs)
     return y, s

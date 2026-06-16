@@ -76,7 +76,7 @@ def _wrap(func: _F, *, env_var_prefix: str) -> _F:
         if "help" in field.metadata:
             typer_kwargs["help"] = field.metadata["help"]
 
-        resolved_type: type = resolved_hints.get(param.name, param.annotation)
+        resolved_type: typing.Any = resolved_hints.get(param.name, param.annotation)
         new_annotation = Annotated[resolved_type, typer.Option(**typer_kwargs)]
 
         new_parameters.append(param.replace(annotation=new_annotation))

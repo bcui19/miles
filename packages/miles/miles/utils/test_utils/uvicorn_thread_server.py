@@ -20,10 +20,11 @@ class UvicornThreadServer:
 
     def start(self) -> None:
         config = uvicorn.Config(self._app, host=self.host, port=self.port, log_level="info")
-        self._server = uvicorn.Server(config)
+        server = uvicorn.Server(config)
+        self._server = server
 
         def run() -> None:
-            asyncio.run(self._server.serve())
+            asyncio.run(server.serve())
 
         self._thread = threading.Thread(target=run, daemon=True)
         self._thread.start()

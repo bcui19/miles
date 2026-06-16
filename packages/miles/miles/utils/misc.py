@@ -3,6 +3,7 @@ import importlib
 import re
 import subprocess
 from contextlib import contextmanager
+from typing import Any
 
 import ray
 from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy
@@ -39,7 +40,7 @@ function_registry = FunctionRegistry()
 
 
 # TODO may rename to `load_object` since it can be used to load things like tool_specs
-def load_function(path):
+def load_function(path) -> Any:
     """
     Load a function from registry or module.
     :param path: The path to the function, e.g. "module.submodule.function".
@@ -84,7 +85,7 @@ def exec_command(cmd: str, capture_output: bool = False) -> str | None:
             shell=False,
             check=True,
             capture_output=capture_output,
-            **(dict(text=True) if capture_output else {}),
+            text=capture_output,
         )
     except subprocess.CalledProcessError as e:
         if capture_output:

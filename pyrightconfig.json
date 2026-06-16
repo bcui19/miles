@@ -3,7 +3,8 @@
     "packages/nanorollout",
     "packages/orchestrator",
     "packages/miles/miles/router",
-    "packages/miles/miles/true_on_policy"
+    "packages/miles/miles/true_on_policy",
+    "packages/miles/miles/utils"
   ],
   "exclude": [
     "**/node_modules",

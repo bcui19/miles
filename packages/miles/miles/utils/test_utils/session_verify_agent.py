@@ -428,7 +428,7 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
 
 
 def _add_arguments(parser):
-    _base_generate.add_arguments(parser)
+    _base_generate.add_arguments(parser)  # type: ignore[attr-defined]
     parser.add_argument(
         "--session-verify-cycles",
         type=int,
@@ -452,4 +452,4 @@ def _add_arguments(parser):
     )
 
 
-generate.add_arguments = _add_arguments
+generate.add_arguments = _add_arguments  # type: ignore[attr-defined]

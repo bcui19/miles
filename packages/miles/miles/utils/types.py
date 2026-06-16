@@ -15,8 +15,8 @@ class Sample:
     # prompt
     prompt: str | list[dict[str, str]] = ""
     tokens: list[int] = field(default_factory=list)
-    multimodal_inputs: dict[str, Any] = None  # raw multimodal data, e.g. images, videos, etc.
-    multimodal_train_inputs: dict[str, Any] = None  # processed multimodal data, e.g. pixel_values, etc.
+    multimodal_inputs: dict[str, Any] | None = None  # raw multimodal data, e.g. images, videos, etc.
+    multimodal_train_inputs: dict[str, Any] | None = None  # processed multimodal data, e.g. pixel_values, etc.
     # response
     response: str = ""
     response_length: int = 0
@@ -150,7 +150,11 @@ class Sample:
         return sample
 
     def get_reward_value(self, args) -> float:
-        return self.reward if not args.reward_key else self.reward[args.reward_key]
+        if args.reward_key:
+            assert isinstance(self.reward, dict), f"reward must be a dict to index by {args.reward_key!r}"
+            return self.reward[args.reward_key]
+        assert isinstance(self.reward, (int, float)), "reward must be a scalar when no reward_key is set"
+        return self.reward
 
     @property
     def effective_response_length(self):

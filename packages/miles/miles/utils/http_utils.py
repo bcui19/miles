@@ -7,6 +7,7 @@ import os
 import random
 import socket
 import time
+from typing import Any
 
 import httpx
 
@@ -172,7 +173,7 @@ _client_concurrency: int = 0
 
 # Optional Ray-based distributed POST dispatch
 _distributed_post_enabled: bool = False
-_post_actors: list[object] = []
+_post_actors: list[Any] = []  # ray actor handles (dynamically typed)
 _post_actor_idx: int = 0
 
 
@@ -202,10 +203,8 @@ async def _post(client, url, payload, max_retries=60, action="post", headers=Non
         except Exception as e:
             retry_count += 1
 
-            if isinstance(e, httpx.HTTPStatusError):
-                response_text = e.response.text
-            else:
-                response_text = None
+            # httpx may be unresolved to the type checker; read response.text defensively.
+            response_text = getattr(getattr(e, "response", None), "text", None)
 
             logger.info(
                 f"Error: {e}, retrying... (attempt {retry_count}/{max_retries}, url={url}, response={response_text})"
@@ -215,9 +214,9 @@ async def _post(client, url, payload, max_retries=60, action="post", headers=Non
                 raise e
             await asyncio.sleep(1)
             continue
-        break
+        return output
 
-    return output
+    raise RuntimeError(f"POST to {url} failed after {max_retries} retries")
 
 
 def init_http_client(args):
@@ -309,6 +308,7 @@ async def post(url, payload, max_retries=60, action="post", headers=None):
 
 # TODO unify w/ `post` to add retries and remote-execution
 async def get(url):
+    assert _http_client is not None, "http client not initialized"
     response = await _http_client.get(url)
     response.raise_for_status()
     output = response.json()

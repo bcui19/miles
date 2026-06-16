@@ -111,16 +111,16 @@ class TITOTokenizer:
         self.chat_template_kwargs = chat_template_kwargs or {}
         self._assistant_start_str = assistant_start_str
         self.allowed_append_roles: list[str] = allowed_append_roles if allowed_append_roles is not None else ["tool"]
-        self.special_token_ids: set[int] = special_token_ids
+        self.special_token_ids: set[int] | None = special_token_ids
 
     def create_comparator(self) -> TokenSeqComparator:
         """Create a :class:`TokenSeqComparator` configured with this
         tokenizer's model-specific settings."""
         return TokenSeqComparator(
             self.tokenizer,
-            assistant_start_str=self._assistant_start_str,
+            assistant_start_str=self._assistant_start_str or "",
             special_token_ids=self.special_token_ids,
-            trim_trailing_ids=self.trailing_token_ids or None,
+            trim_trailing_ids=set(self.trailing_token_ids) if self.trailing_token_ids else None,
         )
 
     def render_messages(
@@ -185,6 +185,7 @@ class TITOTokenizer:
             add_generation_prompt=add_generation_prompt,
             tools=tools,
         )
+        assert isinstance(text_without, str) and isinstance(text_with, str)  # tokenize=False -> str
         if not text_with.startswith(text_without):
             roles = [msg["role"] for msg in appended_messages] if appended_messages else ["generation_prompt"]
             raise ValueError(f"rendered suffix diff failed for {roles}")

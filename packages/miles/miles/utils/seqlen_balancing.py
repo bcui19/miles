@@ -129,9 +129,9 @@ def greedy_partition(seqlen_list: list[int], k_partitions: int, equal_size: bool
     partitions = [[] for _ in range(k_partitions)]
     partition_sums = [0 for _ in range(k_partitions)]
     for seqlen, i in sorted_seqlen:
-        min_idx = None
-        for j in range(k_partitions):
-            if min_idx is None or partition_sums[j] < partition_sums[min_idx]:
+        min_idx = 0
+        for j in range(1, k_partitions):
+            if partition_sums[j] < partition_sums[min_idx]:
                 min_idx = j
         partitions[min_idx].append(i)
         partition_sums[min_idx] += seqlen
@@ -164,7 +164,7 @@ def get_seqlen_balanced_partitions(seqlen_list: list[int], k_partitions: int, eq
     def _check_and_sort_partitions(partitions):
         assert len(partitions) == k_partitions, f"{len(partitions)} != {k_partitions}"
         seen_idx = set()
-        sorted_partitions = [None] * k_partitions
+        sorted_partitions: list[list[int]] = [[] for _ in range(k_partitions)]
         for i, partition in enumerate(partitions):
             assert len(partition) > 0, f"the {i}-th partition is empty"
             for idx in partition:

@@ -16,6 +16,8 @@ class Timer(metaclass=SingletonMeta):
     def __init__(self):
         self.timers = {}
         self.start_time = {}
+        # Seq lengths of the current rollout batch (set by the data pipeline).
+        self.seq_lens: list[int] | None = None
 
     def start(self, name):
         assert name not in self.start_time, f"Timer {name} already started."
