@@ -174,7 +174,7 @@ class StringRadixTrie:
                 remaining_text = remaining_text[best_key_len:]
 
                 # Accumulate tokens, logp, and loss_mask from this node
-                if best_child.has_value:
+                if best_child.token_ids is not None and best_child.logp is not None:
                     matched_tokens.extend(best_child.token_ids)
                     matched_logp.extend(best_child.logp)
                     if best_child.loss_mask is not None:
@@ -310,7 +310,7 @@ class StringRadixTrie:
                 remaining_text = remaining_text[best_key_len:]
 
                 # Skip the tokens that this existing node covers
-                if best_child.has_value:
+                if best_child.token_ids is not None:
                     tokens_to_skip = len(best_child.token_ids)
                     remaining_tokens = remaining_tokens[tokens_to_skip:]
                     remaining_logp = remaining_logp[tokens_to_skip:]
@@ -416,7 +416,7 @@ class StringRadixTrie:
             removed_count += self._remove_node_and_descendants(child)
 
         # Count this node if it has data and decrement cache size
-        if node.has_value:
+        if node.token_ids is not None:
             removed_count += 1
             # Decrement cache size by number of tokens removed
             self.cur_cache_size -= len(node.token_ids)
@@ -588,6 +588,7 @@ class StringRadixTrie:
             if return_logprob is False, all logp will be 0.0
         """
         # Call find_longest_prefix to get the match result
+        assert self.tokenizer is not None, "tokenizer is required for retrieve_from_text"
         result = self.find_longest_prefix(text)
 
         # If we have a match and it covers the entire text, return the tokens
@@ -598,7 +599,7 @@ class StringRadixTrie:
                 (
                     result.logp + len(additional_tokens) * [0.0]
                     if return_logprob
-                    else [0] * len(result.token_ids + additional_tokens)
+                    else [0.0] * len(result.token_ids + additional_tokens)
                 ),
                 result.loss_mask + len(additional_tokens) * [0],
             )

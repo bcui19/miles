@@ -93,6 +93,7 @@ class RadixTreeMiddleware(BaseHTTPMiddleware):
         request._json = request_json
 
         response_data = None
+        response = None
         for _ in range(5):
             response = await call_next(request)
 
@@ -183,8 +184,8 @@ async def postprocess_sample_with_radix_tree(args, sample: Sample, output: dict)
     retrieve_output = await post(retrieve_url, retrieve_payload)
     sample.tokens = retrieve_output["tokens"]
     sample.response += output["text"]
-    sample.loss_mask = retrieve_output["loss_mask"]
-    sample.response_length = get_response_lengths([sample.loss_mask])[0]
-    sample.loss_mask = sample.loss_mask[-sample.response_length :]
+    loss_mask = retrieve_output["loss_mask"]
+    sample.response_length = get_response_lengths([loss_mask])[0]
+    sample.loss_mask = loss_mask[-sample.response_length :]
     sample.rollout_log_probs = retrieve_output["rollout_logp"][-sample.response_length :]
     return sample

@@ -1,7 +1,8 @@
 {
   "include": [
     "packages/nanorollout",
-    "packages/orchestrator"
+    "packages/orchestrator",
+    "packages/miles/miles/router"
   ],
   "exclude": [
     "**/node_modules",

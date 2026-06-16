@@ -218,12 +218,12 @@ class MilesRouter:
 
         if not self.dead_workers:
             # Healthy path: select from all workers
-            url = min(self.worker_request_counts, key=self.worker_request_counts.get)
+            url = min(self.worker_request_counts, key=lambda _u: self.worker_request_counts[_u])
         else:
             # Degraded path: select from workers not in dead_workers
             valid_workers = (w for w in self.worker_request_counts if w not in self.dead_workers)
             try:
-                url = min(valid_workers, key=self.worker_request_counts.get)
+                url = min(valid_workers, key=lambda _u: self.worker_request_counts[_u])
             except ValueError:
                 raise RuntimeError("No healthy workers available in the pool") from None
 
