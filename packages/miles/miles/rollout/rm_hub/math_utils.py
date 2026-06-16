@@ -213,17 +213,16 @@ def _is_frac(expr: str) -> bool:
 
 def _str_is_int(x: str) -> bool:
     try:
-        x = _strip_properly_formatted_commas(x)
-        x = float(x)
-        return abs(x - int(round(x))) <= 1e-7
+        s = _strip_properly_formatted_commas(x)
+        val = float(s)
+        return abs(val - int(round(val))) <= 1e-7
     except Exception:
         return False
 
 
 def _str_to_int(x: str) -> int:
-    x = x.replace(",", "")
-    x = float(x)
-    return int(x)
+    val = float(x.replace(",", ""))
+    return int(val)
 
 
 def _inject_implicit_mixed_number(step: str):
@@ -414,11 +413,12 @@ def remove_boxed(s):
         return None
 
 
-def extract_boxed_answer(solution: str) -> str:
+def extract_boxed_answer(solution: str) -> str | None:
     """Extract the answer from inside a LaTeX \\boxed{} command"""
-    solution = last_boxed_only_string(solution)
-    solution = remove_boxed(solution)
-    return solution
+    boxed = last_boxed_only_string(solution)
+    if boxed is None:
+        return None
+    return remove_boxed(boxed)
 
 
 def grade_answer_sympy(given_answer: str, ground_truth: str) -> bool:
@@ -444,6 +444,7 @@ def grade_answer_sympy(given_answer: str, ground_truth: str) -> bool:
     elif len(ground_truth_elems) != len(given_elems):
         is_correct = False
     else:
+        is_correct = True  # vacuously true if there are no element pairs to compare
         for ground_truth_elem, given_elem in zip(ground_truth_elems, given_elems, strict=False):
             if _is_frac(ground_truth_elem) and _is_frac(given_elem):
                 # if fractions aren't reduced, then shouldn't be marked as correct
@@ -470,7 +471,7 @@ def grade_answer_mathd(given_answer: str, ground_truth: str) -> bool:
     return False
 
 
-def extract_answer(passage: str) -> str:
+def extract_answer(passage: str) -> str | None:
     if "\\boxed" in passage:
         return extract_boxed_answer(passage)
     return None

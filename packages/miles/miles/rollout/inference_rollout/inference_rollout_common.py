@@ -59,6 +59,9 @@ async def generate_and_rm(
 ) -> Sample | list[Sample]:
     args = state.args
 
+    # Callers pass a single Sample; the grouped (list) form only arises from the
+    # generation result reassigned below.
+    assert not isinstance(sample, list)
     # mask previous off-policy generation for partial rollout
     if args.partial_rollout and args.mask_offpolicy_in_partial_rollout and sample.response_length > 0:
         sample.loss_mask = [0] * sample.response_length
