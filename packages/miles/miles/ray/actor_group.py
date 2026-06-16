@@ -65,7 +65,7 @@ class RayTrainGroup:
             import torch_memory_saver
 
             dynlib_path = os.path.join(
-                os.path.dirname(os.path.dirname(torch_memory_saver.__file__)),
+                os.path.dirname(os.path.dirname(torch_memory_saver.__file__ or "")),
                 "torch_memory_saver_hook_mode_preload.abi3.so",
             )
             assert os.path.exists(dynlib_path), f"LD_PRELOAD so file {dynlib_path} does not exist."

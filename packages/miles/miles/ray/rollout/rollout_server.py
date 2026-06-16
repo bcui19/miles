@@ -44,6 +44,7 @@ def start_rollout_servers(args, pg) -> dict[str, "RolloutServer"]:
 
         for group_cfg in model_cfg.server_groups:
             gpus_per_engine = group_cfg.num_gpus_per_engine
+            assert gpus_per_engine is not None
             num_gpu_per_engine_local = min(gpus_per_engine, args.num_gpus_per_node)
             num_engines = group_cfg.num_gpus // num_gpu_per_engine_local
 
@@ -73,7 +74,7 @@ def start_rollout_servers(args, pg) -> dict[str, "RolloutServer"]:
                 model_path=overrides.get("model_path", args.hf_checkpoint),
                 router_ip=router_ip,
                 router_port=router_port,
-                update_weights=model_cfg.update_weights,
+                update_weights=model_cfg.update_weights if model_cfg.update_weights is not None else True,
             )
             handles, new_engine_indices = group.start_engines(port_cursors)
             all_init_handles.extend(handles)
@@ -94,7 +95,7 @@ def start_rollout_servers(args, pg) -> dict[str, "RolloutServer"]:
             router_ip=router_ip,
             router_port=router_port,
             model_name=model_cfg.name,
-            update_weights=model_cfg.update_weights,
+            update_weights=model_cfg.update_weights if model_cfg.update_weights is not None else True,
         )
 
     args.sglang_model_routers = {name: (srv.router_ip, srv.router_port) for name, srv in servers.items()}

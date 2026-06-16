@@ -83,6 +83,10 @@ def create_placement_groups(args):
     """Create placement groups for actor and rollout engines."""
 
     num_gpus = 0
+    # Set below only when args.use_critic; default so they are always bound.
+    critic_offset = 0
+    critic_pg_reordered_bundle_indices = None
+    critic_pg_reordered_gpu_ids = None
     if args.debug_train_only:
         num_gpus = args.actor_num_nodes * args.actor_num_gpus_per_node
         rollout_offset = 0
@@ -135,6 +139,7 @@ def allocate_train_group(args, num_nodes, num_gpus_per_node, pg, role: str, with
 
 
 async def create_training_models(args, pgs, rollout_manager):
+    critic_init_task = None  # set below only when args.use_critic
     actor_model = allocate_train_group(
         args=args,
         num_nodes=args.actor_num_nodes,
@@ -163,6 +168,7 @@ async def create_training_models(args, pgs, rollout_manager):
         args.start_rollout_id = start_rollout_ids[0]
 
     if args.use_critic:
+        assert critic_init_task is not None
         await critic_init_task
         await actor_model.connect(critic_model)
 

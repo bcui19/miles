@@ -2,6 +2,10 @@ from miles.utils.misc import get_current_node_ip, get_free_port
 
 
 class RayActor:
+    # Set by subclasses during distributed init.
+    master_addr: str
+    master_port: int
+
     @staticmethod
     def _get_current_node_ip_and_free_port(start_port=10000, consecutive=1):
         return get_current_node_ip(), get_free_port(start_port=start_port, consecutive=consecutive)

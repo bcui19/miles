@@ -2,6 +2,7 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass
+from typing import cast
 
 import ray
 from sglang.srt.constants import GPU_MEMORY_TYPE_CUDA_GRAPH, GPU_MEMORY_TYPE_KV_CACHE, GPU_MEMORY_TYPE_WEIGHTS
@@ -133,11 +134,11 @@ class RolloutManager:
             result = await asyncio.to_thread(
                 call_rollout_fn, self.eval_generate_rollout, self.args, rollout_id, self.data_source, evaluation=True
             )
-        data = result.data
+        data = result.data  # type: ignore[attr-defined]
         save_debug_rollout_data(self.args, data, rollout_id=rollout_id, evaluation=True)
         metrics = log_eval_rollout_data(rollout_id, self.args, data, result.metrics)
-        if self._metric_checker is not None:
-            self._metric_checker.on_eval(metrics)
+        if self._metric_checker is not None and metrics is not None:
+            self._metric_checker.on_eval(cast(dict[str, float], metrics))
 
     async def _get_rollout_data(self, rollout_id):
         if self.args.load_debug_rollout_data:
@@ -154,7 +155,7 @@ class RolloutManager:
                     call_rollout_fn, self.generate_rollout, self.args, rollout_id, self.data_source, evaluation=False
                 )
             metrics = data.metrics
-            data = data.samples
+            data = data.samples  # type: ignore[attr-defined]
             data, metadata = postprocess_rollout_data(
                 self.args, data, train_parallel_config=self.train_parallel_config
             )

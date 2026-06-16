@@ -2,6 +2,7 @@ import logging
 import multiprocessing
 import random
 import uuid
+from typing import cast
 
 
 from miles.utils.http_utils import (
@@ -25,7 +26,7 @@ def start_router(args, *, has_pd_disaggregation: bool = False, force_new: bool =
     if not force_new and args.sglang_router_ip is not None:
         return args.sglang_router_ip, args.sglang_router_port
 
-    router_ip = _wrap_ipv6(get_host_info()[1])
+    router_ip = cast(str, _wrap_ipv6(get_host_info()[1]))
     if force_new:
         router_port = find_available_port(random.randint(3000, 4000))
     else:

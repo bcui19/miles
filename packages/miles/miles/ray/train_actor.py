@@ -3,7 +3,7 @@ import logging
 import os
 import random
 from datetime import timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import ray
 import torch
@@ -32,6 +32,8 @@ def get_local_gpu_id():
 
 
 class TrainRayActor(RayActor):
+    train_parallel_config: Any
+
     def __init__(self, world_size, rank, master_addr, master_port):
         configure_logger()
 

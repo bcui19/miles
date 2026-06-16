@@ -158,7 +158,7 @@ def _compute_zero_std_metrics(args, all_samples: list[Sample]):
     interesting_rewards = [str(round(g[0].get_reward_value(args), 1)) for g in interesting_sample_groups]
 
     counts = {reward: len(items) for reward, items in group_by(interesting_rewards).items()}
-    log_dict = {f"zero_std/count_{reward}": count for reward, count in counts.items()}
+    log_dict: dict[str, float] = {f"zero_std/count_{reward}": count for reward, count in counts.items()}
 
     # Percentages over total groups, so "too hard" (all-0) and "too easy"
     # (all-1) rates are comparable across runs without needing to know the

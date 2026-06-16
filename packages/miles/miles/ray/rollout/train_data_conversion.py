@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, cast
 
 import ray
 import torch
@@ -20,6 +20,10 @@ def convert_samples_to_train_data(
     """
     if (f := custom_convert_samples_to_train_data_func) is not None:
         return f(args, samples)
+
+    # The default conversion path operates on a flat list of samples; the nested
+    # (grouped) form is only consumed by custom conversion funcs handled above.
+    samples = cast(list[Sample], samples)
 
     raw_rewards, rewards = _post_process_rewards(
         args, samples, custom_reward_post_process_func=custom_reward_post_process_func
@@ -83,7 +87,7 @@ def convert_samples_to_train_data(
         train_data["weight_versions"] = [sample.weight_versions for sample in samples]
 
     if "teacher_log_probs" in samples[0].__dict__:
-        train_data["teacher_log_probs"] = [sample.teacher_log_probs for sample in samples]
+        train_data["teacher_log_probs"] = [sample.__dict__["teacher_log_probs"] for sample in samples]
 
     x = metadata.get("dynamic_global_batch_size")
     assert args.use_dynamic_global_batch_size == (x is not None)
@@ -97,6 +101,7 @@ def _post_process_rewards(args, samples: list[Sample] | list[list[Sample]], cust
     if (f := custom_reward_post_process_func) is not None:
         return f(args, samples)
 
+    samples = cast(list[Sample], samples)
     raw_rewards = [sample.get_reward_value(args) for sample in samples]
     if args.advantage_estimator in ["grpo", "gspo", "reinforce_plus_plus_baseline"] and args.rewards_normalization:
         # group norm
