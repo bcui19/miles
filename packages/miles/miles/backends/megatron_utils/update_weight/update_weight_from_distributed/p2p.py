@@ -116,7 +116,7 @@ class UpdateWeightP2P(DistBucketedWeightUpdateMixin):
             self._weight_memory_registry = register_cpu_memory(self._shared_params_dict, self._transfer_engine)
         self._model_registered = True
 
-    def _finalize_and_resume_engines(self):
+    def _finalize_and_resume_engines(self, post_load_weights: bool = False):
         # The `update_weight_version` here is necessary because the engine was not aware that the write has happened
         # After p2p transfering, some models (like the ones with Deepseek-arch) of rollout side should invoke
         # `post_load_weights` to re-generate the params which are not registered as `model.named_parameters()`
@@ -317,6 +317,7 @@ class UpdateWeightP2P(DistBucketedWeightUpdateMixin):
         """
         transfer_ready_params = []
         params_dict = self._shared_params_dict
+        assert self._shared_param_mapper is not None
 
         for name, tensor in converted_named_tensors:
             # map the tensor name of huggingface to the one of sglang.

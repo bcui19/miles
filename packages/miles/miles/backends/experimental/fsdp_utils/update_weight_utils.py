@@ -3,6 +3,7 @@ import logging
 import socket
 from argparse import Namespace
 from collections.abc import Sequence
+from typing import Any
 
 import ray
 import torch
@@ -30,6 +31,10 @@ logger = logging.getLogger(__name__)
 
 
 class UpdateWeight(abc.ABC):
+    # Set by connect_rollout_engines() in concrete subclasses; declared here so the base
+    # methods (update_weights, etc.) type-check against it.
+    rollout_engines: Sequence[ActorHandle]
+
     def __init__(self, args: Namespace, model: torch.nn.Module) -> None:
         self.args = args
         self.model = model
@@ -155,6 +160,7 @@ class UpdateWeightFromTensor(UpdateWeight):
             }
             serialized_tensors.append(MultiprocessingSerializer.serialize(flattened_tensor_data, output_str=True))
 
+        gathered_serialized_batches: list[Any] | None
         if self._ipc_gather_src == dist.get_rank():
             # On rank 0, prepare a list to hold the gathered batches from all ranks.
             gathered_serialized_batches = [None for _ in range(dist.get_world_size(self._ipc_gather_group))]
@@ -173,6 +179,7 @@ class UpdateWeightFromTensor(UpdateWeight):
             # Handle flattened bucket format (same as Megatron approach)
             # Each rank may have multiple dtype buckets
             # TODO: here we assume all ranks have the same number of dtypes
+            assert gathered_serialized_batches is not None
             num_dtypes = len(gathered_serialized_batches[0])
             assert num_dtypes > 0
             for i in range(num_dtypes):

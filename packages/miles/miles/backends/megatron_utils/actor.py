@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 
 class MegatronTrainRayActor(TrainRayActor):
     @with_defer(lambda: Timer().start("train_wait"))
-    def init(
+    def init(  # type: ignore[override]
         self,
         args: Namespace,
         role: str,
@@ -435,6 +435,8 @@ class MegatronTrainRayActor(TrainRayActor):
         save(rollout_id, self.model, self.optimizer, self.opt_param_scheduler)
 
         if force_sync and self.args.async_save:
+            from megatron.training.async_utils import maybe_finalize_async_save
+
             maybe_finalize_async_save(blocking=True)
 
         if self.args.save_hf is not None and self.role == "actor":
@@ -512,8 +514,8 @@ class MegatronTrainRayActor(TrainRayActor):
         self.args.no_load_rng = True
         self.args.finetune = True
 
+        old_ckpt_step = self.args.ckpt_step
         if model_tag == "ref" and self.args.ref_ckpt_step is not None:
-            old_ckpt_step = self.args.ckpt_step
             self.args.ckpt_step = self.args.ref_ckpt_step
 
         _, _ = load_checkpoint(
@@ -531,13 +533,14 @@ class MegatronTrainRayActor(TrainRayActor):
         self.weights_backuper.backup(model_tag)
         self._active_model_tag = model_tag
 
-    def connect_actor_critic(
+    def connect_actor_critic(  # type: ignore[override]
         self,
         actor_handle: ActorHandle | None = None,
         master_address: str | None = None,
         master_port: int | None = None,
     ) -> None:
         if self.role == "actor":
+            assert actor_handle is not None
             master_address = ray.util.get_node_ip_address()
             with socket.socket() as sock:
                 sock.bind(("", 0))

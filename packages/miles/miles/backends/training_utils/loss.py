@@ -33,24 +33,32 @@ def compute_advantages_and_returns(args: Namespace, rollout_data: RolloutBatch) 
             "total_lengths"). Modified in-place to add "advantages" and
             "returns" keys, each mapping to lists of tensors per sample.
     """
-    log_probs: list[torch.Tensor] = rollout_data.get("rollout_log_probs" if args.use_rollout_logprobs else "log_probs")
-    ref_log_probs: list[torch.Tensor] = rollout_data.get("ref_log_probs")
-    rewards: list[float] = rollout_data.get("rewards")
+    log_probs: list[torch.Tensor] | None = rollout_data.get(
+        "rollout_log_probs" if args.use_rollout_logprobs else "log_probs"
+    )
+    ref_log_probs: list[torch.Tensor] | None = rollout_data.get("ref_log_probs")
+    rewards: list[float] | None = rollout_data.get("rewards")
     values: None | list[torch.Tensor] = rollout_data.get("values")
-    response_lengths: list[int] = rollout_data.get("response_lengths")
-    loss_masks: list[torch.Tensor] = rollout_data.get("loss_masks")
-    total_lengths: list[int] = rollout_data.get("total_lengths")
+    response_lengths: list[int] | None = rollout_data.get("response_lengths")
+    loss_masks: list[torch.Tensor] | None = rollout_data.get("loss_masks")
+    total_lengths: list[int] | None = rollout_data.get("total_lengths")
     max_seq_lens: list[int] | None = rollout_data.get("max_seq_lens", None)
 
     # return when not the last pp stage.
     if log_probs is None and values is None:
         return
 
+    # Past the early return we are on the last pp stage, where the actor batch fields are present.
+    assert rewards is not None and loss_masks is not None
+    assert total_lengths is not None and response_lengths is not None
+
     if args.kl_coef == 0 or not log_probs:
         # when kl_coef is 0, we won't compute ref_log_prob
         xs = log_probs if log_probs is not None else values
+        assert xs is not None  # if log_probs is None, values is non-None (per the early return)
         kl = [torch.zeros_like(x, dtype=torch.float32, device=x.device) for x in xs]
     else:
+        assert ref_log_probs is not None
         kl = [
             compute_approx_kl(
                 log_probs[i],

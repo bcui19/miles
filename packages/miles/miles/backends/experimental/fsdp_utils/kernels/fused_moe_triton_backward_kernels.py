@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import torch
 import triton
@@ -236,7 +236,7 @@ def fused_moe_backward_weight_kernel(
 
     # Apply topk_weights if needed
     if MUL_ROUTED_WEIGHT:
-        grad_out = grad_out * moe_weight[:, None]
+        grad_out = grad_out * moe_weight[:, None]  # type: ignore[reportPossiblyUnbound]
 
     # Zero out padding tokens
     token_mask_col = token_mask[:, None]
@@ -448,7 +448,7 @@ def invoke_fused_moe_backward_kernel(
     def grid_input(META):
         return (triton.cdiv(sorted_token_ids.shape[0], META["BLOCK_SIZE_M"]) * triton.cdiv(N, META["BLOCK_SIZE_N"]),)
 
-    fused_moe_backward_input_kernel[grid_input](
+    cast(Any, fused_moe_backward_input_kernel)[grid_input](
         grad_output,
         weight,
         grad_input,
@@ -482,7 +482,7 @@ def invoke_fused_moe_backward_kernel(
     def grid_weight(META):
         return (triton.cdiv(sorted_token_ids.shape[0], META["BLOCK_SIZE_M"]) * triton.cdiv(N, META["BLOCK_SIZE_N"]),)
 
-    fused_moe_backward_weight_kernel[grid_weight](
+    cast(Any, fused_moe_backward_weight_kernel)[grid_weight](
         grad_output,
         input,
         grad_weight,
@@ -513,7 +513,7 @@ def invoke_fused_moe_backward_kernel(
         def grid_topk(META):
             return (triton.cdiv(sorted_token_ids.shape[0], META["BLOCK_SIZE_M"]),)
 
-        fused_moe_backward_topk_weights_kernel[grid_topk](
+        cast(Any, fused_moe_backward_topk_weights_kernel)[grid_topk](
             grad_output,
             input,
             weight,

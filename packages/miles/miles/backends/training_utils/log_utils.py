@@ -1,6 +1,7 @@
 import logging
 from argparse import Namespace
 from math import isclose
+from typing import Any, cast
 
 import numpy as np
 import psutil
@@ -38,7 +39,7 @@ def gather_log_data(
 
     pg = parallel_state.intra_dp_cp
     dp_size = pg.size
-    gathered_log_dict = [None] * dp_size
+    gathered_log_dict: list[Any] = [None] * dp_size
     # Not sure if this will be a performance bottleneck.
     dist.gather_object(
         log_dict,
@@ -83,7 +84,7 @@ def aggregate_forward_results(
         # Handle dynamic batch size: restore original order
         if args.use_dynamic_batch_size and hasattr(data_iterator, "micro_batch_indices"):
             origin_values = [None] * len(values)
-            origin_indices = sum(data_iterator.micro_batch_indices, [])
+            origin_indices = sum(data_iterator.micro_batch_indices or [], [])
             for value, origin_index in zip(values, origin_indices, strict=False):
                 origin_values[origin_index] = value
             values = origin_values
@@ -166,7 +167,7 @@ def log_rollout_data(rollout_id: int, args: Namespace, rollout_data: RolloutBatc
                 val = val.float().mean()
             else:
                 raise ValueError(f"Unsupported type: {type(val)} for key: {key}")
-            log_dict[key] = val.item() if isinstance(val, torch.Tensor) else val
+            log_dict[key] = cast(Any, val).item() if isinstance(val, torch.Tensor) else val
 
         reduced_log_dict = gather_log_data("rollout", args, rollout_id, log_dict)
         if args.ci_test and not args.ci_disable_logprobs_checker and reduced_log_dict is not None:
@@ -388,10 +389,11 @@ def aggregate_train_losses(
     values = None
     for log_dict in losses_reduced:
         if values is None:
-            values = log_dict["values"].clone()
+            values = cast(torch.Tensor, log_dict["values"]).clone()
         else:
-            values += log_dict["values"]
+            values += cast(torch.Tensor, log_dict["values"])
 
+    assert values is not None
     assert len(keys) + 1 == values.numel(), f"Expected {len(keys) + 1} values, got {values.numel()}"
 
     dist.all_reduce(values, op=dist.ReduceOp.SUM, group=parallel_state.intra_dp_cp.group)
@@ -439,7 +441,7 @@ def log_train_step(
     role_tag = "" if role == "actor" else f"{role}-"
 
     log_dict_out = {
-        f"train/{role_tag}{key}": val.mean().item() if isinstance(val, torch.Tensor) else val
+        f"train/{role_tag}{key}": cast(Any, val).mean().item() if isinstance(val, torch.Tensor) else val
         for key, val in loss_dict.items()
     }
     log_dict_out[f"train/{role_tag}grad_norm"] = float(grad_norm)

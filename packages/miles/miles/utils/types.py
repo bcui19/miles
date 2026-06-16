@@ -268,7 +268,17 @@ class ParamInfo:
 # A dict-based batch produced along the rollout -> training path
 # In Megatron backend, several fields are converted to torch.Tensor lists on GPU
 # before being consumed by data iterators (see megatron_utils.actor._get_rollout_data).
-RolloutBatch = dict[str, list[torch.Tensor] | list[int] | list[float] | list[str]]
+#
+# NOTE: RolloutBatch is intentionally `dict[str, Any]` rather than a precise value-type
+# union or a TypedDict. It is a heterogeneous, dynamically-assembled batch — values are
+# tensors / ints / floats / lists / None depending on the key, and the dict is built and
+# extended by *computed-key* assignment (e.g. `for key in (...): batch[key] = data[key]`
+# in split_train_data_by_dp). A precise value union makes every `batch[key]` access the
+# full union (which no typed consumer can satisfy), and a TypedDict can't model the
+# computed-key assignment. So we centralize the "values are dynamic" decision here, once,
+# as `Any` — instead of scattering `cast(...)` / `# pyright: ignore` across every access
+# site. If a future refactor gives the batch a fixed schema, replace this with a TypedDict.
+RolloutBatch = dict[str, Any]
 
 
 @dataclass

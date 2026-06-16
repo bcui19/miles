@@ -2,6 +2,7 @@ import logging
 from contextlib import contextmanager
 from functools import wraps
 from time import time
+from typing import Any
 
 import torch.distributed
 
@@ -54,7 +55,7 @@ class Timer(metaclass=SingletonMeta):
             self.end(name)
 
 
-def timer(name_or_func):
+def timer(name_or_func) -> Any:
     """
     Can be used either as a decorator or a context manager:
 

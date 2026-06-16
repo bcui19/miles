@@ -139,11 +139,12 @@ def expand_multimodal_rollout_data_in_place(
     expanded_response_lengths = []
 
     for i, (token_tensor, loss_mask_tensor) in enumerate(zip(tokens, loss_masks, strict=False)):
-        if mm_inputs_list[i] is not None:
+        mm_inputs = mm_inputs_list[i]
+        if mm_inputs is not None:
             new_tokens, new_loss_mask = _expand_image_tokens_for_sample(
                 token_tensor,
                 loss_mask_tensor,
-                mm_inputs_list[i]["grid_thws"],
+                mm_inputs["grid_thws"],
                 media_token_id=media_token_id,
             )
             token_or_mask_changed = token_or_mask_changed or (

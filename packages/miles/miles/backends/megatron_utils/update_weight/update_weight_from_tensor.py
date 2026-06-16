@@ -336,7 +336,9 @@ def _send_to_colocated_engine(
         long_live_tensors.append(flattened_tensor_data)
         serialized_tensors.append(MultiprocessingSerializer.serialize(flattened_tensor_data, output_str=True))
 
-    serialized_named_tensors = [None] * dist.get_world_size(ipc_gather_group) if is_gather_src else None
+    serialized_named_tensors: list[Any] | None = (
+        [None] * dist.get_world_size(ipc_gather_group) if is_gather_src else None
+    )
     dist.gather_object(
         serialized_tensors,
         object_gather_list=serialized_named_tensors,
@@ -346,6 +348,7 @@ def _send_to_colocated_engine(
 
     refs = []
     if is_gather_src:
+        assert serialized_named_tensors is not None
         if is_lora:
             if lora_loaded:
                 ray.get(ipc_engine.unload_lora_adapter.remote(lora_name=lora_name))

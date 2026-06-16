@@ -89,6 +89,16 @@ def policy_loss_function(
         "tis", "ois", "tis_clipfrac" are included when the respective features
         are enabled.
     """
+    # Conditionally computed below (under feature flags); initialized up front so
+    # they are always bound when referenced under the same flags.
+    opsm_mask = None
+    opsm_clipfrac = None
+    sum_of_sample_mean_for_mismatch_metrics = None
+    ois = None
+    modified_response_masks = None
+    tis_metrics = None
+    kl_loss = None
+
     parallel_state = get_parallel_state()
     advantages = torch.cat(batch["advantages"], dim=0)
     old_log_probs = batch["rollout_log_probs"] if args.use_rollout_logprobs else batch["log_probs"]
@@ -132,6 +142,8 @@ def policy_loss_function(
 
     # Compute OPSM mask if enabled
     if args.use_opsm:
+        # need_full_log_probs is True whenever use_opsm is set, so these are populated.
+        assert full_log_probs is not None and full_old_log_probs is not None
         opsm_mask, opsm_clipfrac = compute_opsm_mask(
             args=args,
             full_log_probs=full_log_probs,
@@ -142,6 +154,8 @@ def policy_loss_function(
 
     # Compute KL divergence (GSPO uses sequence-level KL, others use per-token KL)
     if args.advantage_estimator == "gspo":
+        # need_full_log_probs is True for the gspo estimator, so these are populated.
+        assert full_log_probs is not None and full_old_log_probs is not None
         ppo_kl = compute_gspo_kl(
             full_log_probs=full_log_probs,
             full_old_log_probs=full_old_log_probs,
@@ -340,11 +354,15 @@ def policy_loss_function(
         reported_loss["train_rollout_kl"] = train_rollout_kl.clone().detach()
 
     if args.use_kl_loss:
+        assert kl_loss is not None
         reported_loss["kl_loss"] = kl_loss.clone().detach()
 
     if args.get_mismatch_metrics or args.use_tis:
         # Aggregate mismatch/TIS/RS related metrics with the *pre-RS* masks.
         # See comment above where `sum_of_sample_mean_for_mismatch_metrics` is defined.
+        # All three are populated under this same condition above.
+        assert sum_of_sample_mean_for_mismatch_metrics is not None
+        assert ois is not None and tis_metrics is not None
         reported_loss["ois"] = sum_of_sample_mean_for_mismatch_metrics(ois).clone().detach()
         # Assume all metrics are already cloned and detached
         for metric_key, metric_value in tis_metrics.items():

@@ -17,7 +17,7 @@ def compute_advantages(
     args: Namespace,
     kl: list[torch.Tensor],
     rewards: list[float],
-    log_probs: list[torch.Tensor],
+    log_probs: list[torch.Tensor] | None,
     loss_masks: list[torch.Tensor],
     total_lengths: list[int],
     response_lengths: list[int],
@@ -74,6 +74,7 @@ def compute_advantages(
 
     elif args.advantage_estimator == "on_policy_distillation":
         assert teacher_log_probs is not None, "teacher_log_probs required for on_policy_distillation"
+        assert log_probs is not None, "log_probs required for on_policy_distillation"
         device = log_probs[0].device
         teacher_log_probs = [t_log_prob.to(device=device) for t_log_prob in teacher_log_probs]
         teacher_log_probs = [

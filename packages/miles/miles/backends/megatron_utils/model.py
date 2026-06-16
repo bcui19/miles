@@ -6,8 +6,11 @@ from argparse import Namespace
 from collections.abc import Callable, Sequence
 from functools import partial
 from pathlib import Path
+from typing import Any, Literal, cast
 
 import torch
+import torch.distributed
+import torch.version
 from megatron.core import mpu
 from megatron.core.distributed import DistributedDataParallel as DDP
 from megatron.core.distributed import finalize_model_grads
@@ -125,7 +128,9 @@ def setup_model_and_optimizer(
     if is_lora_enabled(args) and role == "actor" and args.megatron_to_hf_mode == "bridge":
         model = _setup_lora_model_via_bridge(args)
     else:
-        model = get_model(get_model_provider_func(args, role), ModelType.encoder_or_decoder)
+        model = get_model(
+            get_model_provider_func(args, cast(Literal["actor", "critic"], role)), ModelType.encoder_or_decoder
+        )
 
     if args.debug_disable_optimizer:
         if is_megatron_main_rank():
@@ -262,6 +267,7 @@ def forward_only(
         packed_seq_params = get_packed_seq_params(batch, args)
         total_lengths = batch["total_lengths"]
         response_lengths = batch["response_lengths"]
+        multimodal_train_inputs: dict[str, Any] = batch["multimodal_train_inputs"] or {}
         output_tensor = model(
             input_ids=tokens,
             position_ids=None,
@@ -269,7 +275,7 @@ def forward_only(
             labels=None,
             packed_seq_params=packed_seq_params,
             loss_mask=batch["full_loss_masks"],
-            **(batch["multimodal_train_inputs"] if batch["multimodal_train_inputs"] is not None else {}),
+            **multimodal_train_inputs,
         )
 
         return output_tensor, partial(
@@ -361,6 +367,7 @@ def train_one_step(
     for model_chunk in model:
         model_chunk.zero_grad_buffer()
     if not disable_optimizer:
+        assert optimizer is not None
         optimizer.zero_grad()
 
     if args.custom_megatron_before_train_step_hook_path:
@@ -372,7 +379,7 @@ def train_one_step(
     @dumper_phase_util.wrap_forward_step
     def forward_step(data_iterator: DataIterator, model: GPTModel, return_schedule_plan: bool = False) -> tuple[
         torch.Tensor,
-        Callable[[torch.Tensor], tuple[torch.Tensor, int, dict[str, torch.Tensor | list[str]]]],
+        Callable[[torch.Tensor], tuple[torch.Tensor, int | torch.Tensor, dict[str, torch.Tensor | list[str]]]],
     ]:
         """Forward step used by Megatron's pipeline engine during training.
 
@@ -464,6 +471,7 @@ def train_one_step(
     valid_step = True
     grad_norm = 0.0
     if (not disable_optimizer) and (not getattr(args, "check_for_nan_in_loss_and_grad", True)):
+        assert optimizer is not None
         found_inf_flag = optimizer.prepare_grads()
         if found_inf_flag:
             valid_step = False
@@ -487,6 +495,7 @@ def train_one_step(
     dumper_phase_util.finalize(model)
 
     if not disable_optimizer and valid_step:
+        assert optimizer is not None and opt_param_scheduler is not None
         # Update parameters.
         update_successful, grad_norm, num_zeros_in_grad = optimizer.step()
 
@@ -498,12 +507,13 @@ def train_one_step(
     for model_chunk in model:
         model_chunk.zero_grad_buffer()
     if not disable_optimizer:
+        assert optimizer is not None
         optimizer.zero_grad()
 
     if mpu.is_pipeline_last_stage(ignore_virtual=True):
         loss_reduced = aggregate_train_losses(losses_reduced)
-        return loss_reduced, grad_norm
-    return {}, grad_norm
+        return loss_reduced, float(grad_norm)
+    return {}, float(grad_norm)
 
 
 def finalize_model_grads_with_empty_cache(*args, **kwargs):
@@ -549,7 +559,7 @@ def train(
 
     # Setup some training config params.
     config = get_model_config(model[0])
-    config.grad_scale_func = None if disable_optimizer else optimizer.scale_loss
+    config.grad_scale_func = None if (disable_optimizer or optimizer is None) else optimizer.scale_loss
     config.timers = None
     if isinstance(model[0], DDP) and args.overlap_grad_reduce:
         assert config.no_sync_func is None, (
@@ -572,6 +582,7 @@ def train(
     pre_hook_enabled = False
 
     if args.reset_optimizer_states and not disable_optimizer:
+        assert optimizer is not None
         if is_megatron_main_rank():
             print("Reset optimizer states")
         for chained_optimizer in optimizer.chained_optimizers:
@@ -594,6 +605,7 @@ def train(
     # Disable forward pre-hook to start training to ensure that errors in checkpoint loading
     # or random initialization don't propagate to all ranks in first all-gather (which is a
     # no-op if things work correctly).
+    param_sync_func = None
     if should_disable_forward_pre_hook(args):
         disable_forward_pre_hook(model, param_sync=False)
         # Also remove param_sync_func temporarily so that sync calls made in
@@ -628,6 +640,7 @@ def train(
                 config.param_sync_func = param_sync_func
                 pre_hook_enabled = True
 
+        mtp_losses = None
         if args.enable_mtp_training:
             from megatron.core.transformer.multi_token_prediction import MTPLossLoggingHelper
 
@@ -660,6 +673,7 @@ def train(
                 extra_metrics["mtp_loss"] = mtp_losses
 
             if not disable_optimizer:
+                assert optimizer is not None and opt_param_scheduler is not None
                 for param_group_id, param_group in enumerate(optimizer.param_groups):
                     extra_metrics[f"lr-pg_{param_group_id}"] = opt_param_scheduler.get_lr(param_group)
 

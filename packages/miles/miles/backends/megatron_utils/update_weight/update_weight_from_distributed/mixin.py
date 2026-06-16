@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from typing import Any
 
 import ray
 import torch
@@ -42,6 +43,22 @@ class DistBucketedWeightUpdateMixin:
             engines (via NCCL broadcast, p2p write, etc.).
     """
 
+    # Declared for the type checker; the consuming class sets these (see above).
+    args: Any
+    model: Any
+    model_name: str
+    quantization_config: Any
+    weight_version: int
+    rollout_engines: Any
+    _group_name: str
+    _update_weight_implementation: Callable[..., None]
+
+    # Provided as a @property by the concrete subclasses (broadcast.py, p2p.py); declared
+    # here as a property (not a plain attribute) so those overrides are compatible.
+    @property
+    def _is_source(self) -> bool:
+        raise NotImplementedError
+
     def _gather_and_update_non_expert_weights(
         self,
         update_bucket_weight_func: Callable[[list[tuple[str, torch.Tensor]], tqdm | None], None],
@@ -68,8 +85,8 @@ class DistBucketedWeightUpdateMixin:
                 buffer_size = 0
 
             for name, param in gathered_params:
-                converted_named_tensors += convert_to_hf(
-                    self.args, self.model_name, name, param, self.quantization_config
+                converted_named_tensors += (
+                    convert_to_hf(self.args, self.model_name, name, param, self.quantization_config) or []
                 )
             buffer_size += unit_size
 
@@ -133,7 +150,9 @@ class DistBucketedWeightUpdateMixin:
         Gather EP → HF → update weights. Clears buffer.
         """
         names = [name for name, _ in named_tensors]
-        all_names: list[list[str] | None] = [None] * get_parallel_state().ep.size
+        # all_gather_object replaces every slot with a real list[str]; typed Any so the
+        # placeholder None initializer does not leak into len()/subscript below.
+        all_names: list[Any] = [None] * get_parallel_state().ep.size
         dist.all_gather_object(all_names, names, group=get_parallel_state().ep.group)
 
         for ep_names in all_names:
@@ -163,7 +182,9 @@ class DistBucketedWeightUpdateMixin:
 
         converted_hf_tensors: list[tuple[str, torch.Tensor]] = []
         for name, param in flat_gathered:
-            converted_hf_tensors += convert_to_hf(self.args, self.model_name, name, param, self.quantization_config)
+            converted_hf_tensors += (
+                convert_to_hf(self.args, self.model_name, name, param, self.quantization_config) or []
+            )
 
         update_bucket_weight_func(converted_hf_tensors, pbar)
 

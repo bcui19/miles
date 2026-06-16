@@ -71,7 +71,7 @@ def get_named_update_units(param_names: Sequence[str], atomic_update_groups) -> 
 
     for (prefix, key), names in pending_groups.items():
         assert all(names), f"Atomic update group {prefix}:{key} is incomplete: {names}"
-        resolved_names = tuple(names)
+        resolved_names = tuple(name for name in names if name is not None)
         ordered_units.append((min(position[name] for name in resolved_names), NamedUpdateUnit(names=resolved_names)))
 
     for name in param_names:
@@ -257,6 +257,7 @@ def _named_params_and_buffers_global(
     """
     ep_size = get_parallel_state().ep.size
     ep_rank = get_parallel_state().ep.rank
+    expert_offset = 0
     if args.num_experts:
         expert_offset = ep_rank * args.num_experts // ep_size
 

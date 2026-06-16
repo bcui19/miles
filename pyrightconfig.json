@@ -6,7 +6,8 @@
     "packages/miles/miles/true_on_policy",
     "packages/miles/miles/utils",
     "packages/miles/miles/ray",
-    "packages/miles/miles/rollout"
+    "packages/miles/miles/rollout",
+    "packages/miles/miles/backends"
   ],
   "exclude": [
     "**/node_modules",

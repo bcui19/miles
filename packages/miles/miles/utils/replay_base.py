@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import Any
 
 import torch
 import torch.distributed as dist
@@ -66,7 +67,8 @@ class BaseReplayManager:
         self.current: Replay | None = None
         self.enabled = False
         self.stage = "fallthrough"
-        self.register_replay_list_func = None
+        # Set by consumers (see backends replay managers) to a RegisterReplayListFunc.
+        self.register_replay_list_func: Any = None
 
     def create_replay(self, stream_idx: int | None = None) -> Replay:
         replay = Replay(stream_idx=stream_idx)

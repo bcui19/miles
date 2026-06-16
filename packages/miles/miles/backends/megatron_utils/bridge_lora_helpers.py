@@ -52,10 +52,12 @@ def _make_value_model_hook(hidden_size: int, sequence_parallel: bool):
         for index, model_chunk in enumerate(model_list):
             if not model_post_process[index]:
                 continue
+            # LinearForLastLayer reads sequence_parallel from the config; pass the model
+            # chunk's transformer config (matches model_provider.py's value-head setup).
             model_chunk.output_layer = LinearForLastLayer(
                 input_size=hidden_size,
                 output_size=1,
-                sequence_parallel=sequence_parallel,
+                config=model_chunk.config,
             )
 
     return hook

@@ -4,13 +4,22 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import torch
 import torch.distributed as dist
-import torch.distributed.checkpoint as dcp
-from torch.distributed.checkpoint.state_dict import get_state_dict, set_state_dict
+import torch.distributed.checkpoint as _dcp
+from torch.distributed.checkpoint.state_dict import get_state_dict
+from torch.distributed.checkpoint.state_dict import set_state_dict as _set_state_dict
 from torch.distributed.checkpoint.stateful import Stateful
+
+# The installed torch distributed-checkpoint API is newer than the type stubs bundled
+# with this pyright pin: `dcp.load`/`dcp.save` accept `state_dict` + `checkpoint_id`
+# (no positional storage reader/writer), and `set_state_dict` accepts None for the
+# state it should skip. Treat these helpers as dynamically typed here, once, instead of
+# scattering ignores across every call site.
+dcp = cast(Any, _dcp)
+set_state_dict = cast(Any, _set_state_dict)
 
 logger = logging.getLogger(__name__)
 
@@ -228,7 +237,7 @@ def save(actor: Any, iteration: int) -> None:
         dcp.save(lr_scheduler_state_dict, checkpoint_id=str(lr_scheduler_dir))
 
     if dist.get_rank() == 0:
-        rng_state = {"torch": torch.get_rng_state()}
+        rng_state: dict[str, Any] = {"torch": torch.get_rng_state()}
         rng_state["cuda"] = torch.cuda.get_rng_state_all()
         torch.save(rng_state, checkpoint_dir / "rng.pt")
 

@@ -36,6 +36,8 @@ class HfWeightIteratorBridge(HfWeightIteratorBase):
                     conversion_tasks=conversion_tasks,
                     merge_adapter_weights=False,
                 )
+            else:
+                raise ValueError(f"unknown weight_type: {weight_type!r}")
 
             # Apply postprocess + quantization (when targeting a quantized rollout,
             # e.g. FP8 sglang). Base weights are quantized to match the rollout's
@@ -63,7 +65,9 @@ class HfWeightIteratorBridge(HfWeightIteratorBase):
                 # quantize_params expects the megatron name with the `module.module.`
                 # prefix that the direct iterator uses; the bridge yields it without.
                 qmegatron_name = f"module.module.{megatron_param_name}"
-                yield from quantize_params(self.args, qmegatron_name, [(hf_name, weight)], self.quantization_config)
+                yield from (
+                    quantize_params(self.args, qmegatron_name, [(hf_name, weight)], self.quantization_config) or []
+                )
             else:
                 yield hf_name, weight
 

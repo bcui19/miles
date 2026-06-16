@@ -231,6 +231,7 @@ def if_quant(name, patterns):
 
 
 def pack_layer(weight, group_size, sym=True):
+    assert fake_int4_quant_cuda is not None, "fake_int4_quant_cuda is required for int4 packing"
     w, scale, zp = fake_int4_quant_cuda.fake_int4_quant_cuda(weight, (1, group_size), sym)
     w = w.view(weight.shape[0], 1, weight.shape[1] // group_size, group_size)
     scale = scale.view(weight.shape[0], 1, weight.shape[1] // group_size, 1)

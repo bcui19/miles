@@ -7,7 +7,6 @@ import math
 
 import torch
 from torch.optim.lr_scheduler import LRScheduler
-from typing_extensions import override
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +123,7 @@ class FSDPLRScheduler(LRScheduler):
         elif self.lr_decay_style == "cosine":
             coeff = 0.5 * (math.cos(math.pi * decay_ratio) + 1.0)
         elif self.lr_decay_style == "WSD":
+            assert self.wsd_decay_steps is not None
             wsd_anneal_start_ = self.lr_decay_steps - self.wsd_decay_steps
             if self.last_epoch <= wsd_anneal_start_:
                 coeff = 1.0
@@ -144,7 +144,6 @@ class FSDPLRScheduler(LRScheduler):
         assert coeff is not None
         return min_lr + coeff * delta_lr
 
-    @override
     def get_lr(self) -> list[float]:
         """Compute the learning rates for each parameter group.
 

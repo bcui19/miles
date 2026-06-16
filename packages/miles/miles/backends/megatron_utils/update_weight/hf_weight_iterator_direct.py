@@ -1,6 +1,7 @@
 import dataclasses
 from argparse import Namespace
 from collections.abc import Sequence
+from typing import Any
 
 import torch
 import torch.distributed as dist
@@ -39,9 +40,8 @@ class HfWeightIteratorDirect(HfWeightIteratorBase):
     def _convert_to_hf_named_tensors(self, megatron_full_params: Sequence[torch.Tensor], param_infos: list[ParamInfo]):
         hf_named_tensors = []
         for info, param in zip(param_infos, megatron_full_params, strict=False):
-            hf_named_tensors.extend(
-                convert_to_hf(self.args, self.model_name, info.name, param, self.quantization_config)
-            )
+            converted = convert_to_hf(self.args, self.model_name, info.name, param, self.quantization_config)
+            hf_named_tensors.extend(converted or [])
         return hf_named_tensors
 
 
@@ -70,32 +70,24 @@ def _get_megatron_full_params(
 
     # broadcast params across pp ranks
     if pp_size > 1:
+        pp_group = get_parallel_state().pp.group
+        assert pp_group is not None
         handles = []
         for info, param in zip(megatron_local_param_infos, params, strict=False):
-            if info.src_rank in dist.get_process_group_ranks(get_parallel_state().pp.group):
-                handles.append(
-                    torch.distributed.broadcast(
-                        param, src=info.src_rank, group=get_parallel_state().pp.group, async_op=True
-                    )
-                )
+            if info.src_rank in dist.get_process_group_ranks(pp_group):
+                handles.append(dist.broadcast(param, src=info.src_rank, group=pp_group, async_op=True))
         for handle in handles:
             handle.wait()
 
     # broadcast params across ep ranks
     if ep_size > 1:
+        ep_group = get_parallel_state().ep.group
+        assert ep_group is not None
         handles = []
         for info, param in zip(megatron_local_param_infos, params, strict=False):
             if ".experts." in info.name:
-                src_rank = (
-                    info.src_rank
-                    if info.src_rank in dist.get_process_group_ranks(get_parallel_state().ep.group)
-                    else rank
-                )
-                handles.append(
-                    torch.distributed.broadcast(
-                        param, src=src_rank, group=get_parallel_state().ep.group, async_op=True
-                    )
-                )
+                src_rank = info.src_rank if info.src_rank in dist.get_process_group_ranks(ep_group) else rank
+                handles.append(dist.broadcast(param, src=src_rank, group=ep_group, async_op=True))
         for handle in handles:
             handle.wait()
 
@@ -179,7 +171,7 @@ def _get_megatron_local_param_infos(args: Namespace, model: Sequence[torch.nn.Mo
         )
 
     if pp_size > 1:
-        param_infos_list = [None] * pp_size
+        param_infos_list: list[Any] = [None] * pp_size
         dist.all_gather_object(
             obj=(rank, param_infos), object_list=param_infos_list, group=get_parallel_state().pp.group
         )
@@ -196,7 +188,7 @@ def _get_megatron_local_param_infos(args: Namespace, model: Sequence[torch.nn.Mo
                     param_infos[name] = info
 
     if ep_size > 1:
-        param_infos_list = [None] * ep_size
+        param_infos_list: list[Any] = [None] * ep_size
         dist.all_gather_object(
             obj=(rank, param_infos), object_list=param_infos_list, group=get_parallel_state().ep.group
         )
@@ -211,7 +203,7 @@ def _get_megatron_local_param_infos(args: Namespace, model: Sequence[torch.nn.Mo
     param_infos = sorted(param_infos, key=lambda info: info.name)
 
     # Check all ranks has the same parameter info
-    all_param_info_list = [None] * dist.get_world_size()
+    all_param_info_list: list[Any] = [None] * dist.get_world_size()
     dist.all_gather_object(
         obj=param_infos,
         object_list=all_param_info_list,

@@ -161,12 +161,14 @@ class P2PTransferManager:
     def submit(self, fn: Callable, *args) -> None:
         """Submit a callable to the thread pool."""
         self.ensure_started()
+        assert self.executor is not None
         future = self.executor.submit(fn, *args)
         self.transfer_futures.append(future)
 
     def submit_returning_future(self, fn: Callable, *args) -> torch.Future:
         """Submit a callable and return its future (also tracked for bulk waiting)."""
         self.ensure_started()
+        assert self.executor is not None
         future = self.executor.submit(fn, *args)
         self.transfer_futures.append(future)
         return future

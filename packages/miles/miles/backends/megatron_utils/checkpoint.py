@@ -7,7 +7,7 @@ import torch.distributed as dist
 
 # TODO: may need to copy those 2 functions and do refactoring.
 from megatron.training.checkpointing import load_checkpoint as _load_checkpoint_megatron
-from megatron.training.checkpointing import save_checkpoint
+from megatron.training.checkpointing import save_checkpoint as _save_checkpoint_megatron
 from megatron.training.global_vars import get_args
 
 from miles.utils import megatron_bridge_utils
@@ -93,6 +93,11 @@ except ImportError:
     pass
 
 logger = logging.getLogger(__name__)
+
+# Re-export megatron's save_checkpoint as a definite local binding so consumers can
+# import it from this module. (A bare `from ... import save_checkpoint` re-export of a
+# symbol that originates in an unresolved third-party module is not seen as a member.)
+save_checkpoint = _save_checkpoint_megatron
 
 __all__ = ["save_checkpoint", "save_checkpoint_with_lora", "load_checkpoint"]
 

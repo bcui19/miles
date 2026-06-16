@@ -3,6 +3,7 @@
 
 from argparse import Namespace
 from pathlib import Path
+from typing import cast
 
 import torch
 import torch.distributed as dist
@@ -578,7 +579,8 @@ def get_advantages_and_returns(
         advantages = full_advantages
         returns = full_returns
 
-    return advantages.detach(), returns
+    # advantages is a tensor here (slice_log_prob_with_cp returns a tensor for tensor input).
+    return cast(torch.Tensor, advantages).detach(), returns
 
 
 def get_advantages_and_returns_batch(

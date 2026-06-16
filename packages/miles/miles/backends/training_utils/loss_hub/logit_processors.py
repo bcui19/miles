@@ -70,6 +70,7 @@ def get_responses(
 
         if cp_size == 1:
             if qkv_format == "bshd":
+                assert max_seq_len is not None
                 end = max_seq_len * i + total_length
                 start = end - response_length
                 logits_chunk = logits[start - 1 : end - 1]

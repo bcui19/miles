@@ -2,7 +2,7 @@ import logging
 import os
 import random
 from argparse import Namespace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import ray
 import torch
@@ -248,7 +248,10 @@ class FSDPTrainRayActor(TrainRayActor):
             model = model.to_empty(device=torch.cuda.current_device())
 
         is_cpu_offload = cpu_offload is not None
-        options = StateDictOptions(full_state_dict=True, cpu_offload=is_cpu_offload, broadcast_from_rank0=True)
+        # `broadcast_from_rank0` exists in the installed torch but not in the pinned stubs.
+        options = cast(Any, StateDictOptions)(
+            full_state_dict=True, cpu_offload=is_cpu_offload, broadcast_from_rank0=True
+        )
 
         set_model_state_dict(model, full_state, options=options)
 
@@ -479,7 +482,8 @@ class FSDPTrainRayActor(TrainRayActor):
                     losses_reduced.append(log_dict)
 
                 grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.clip_grad)
-                grad_norm = grad_norm.full_tensor().item()
+                # Under FSDP2 clip_grad_norm_ returns a DTensor; full_tensor() is not on the Tensor stub.
+                grad_norm = cast(Any, grad_norm).full_tensor().item()
 
                 self.optimizer.step()
                 self.lr_scheduler.step()
@@ -641,7 +645,7 @@ class FSDPTrainRayActor(TrainRayActor):
                 cu_seqlens = batch["cu_seqlens"]
                 if not cu_seqlens.is_cuda:
                     cu_seqlens = cu_seqlens.cuda()
-                update_ring_flash_attn_params(cu_seqlens, self.cp_group)
+                update_ring_flash_attn_params(cu_seqlens, get_parallel_state().cp.group)
 
             input_ids = torch.chunk(input_ids, get_parallel_state().cp.size, dim=1)[get_parallel_state().cp.rank]
             position_ids = torch.chunk(position_ids, get_parallel_state().cp.size, dim=1)[get_parallel_state().cp.rank]
@@ -686,7 +690,13 @@ def apply_fsdp2(model, mesh=None, cpu_offload=False, args=None):
 
     Ref: https://github.com/volcengine/verl/blob/main/verl/utils/fsdp_utils.py
     """
-    from torch.distributed.fsdp import CPUOffloadPolicy, MixedPrecisionPolicy, fully_shard
+    # FSDP2 APIs (fully_shard / MixedPrecisionPolicy / CPUOffloadPolicy) are newer than the
+    # torch type stubs bundled with this pyright pin, so access them dynamically.
+    import torch.distributed.fsdp as _fsdp2
+
+    fully_shard = cast(Any, _fsdp2).fully_shard
+    MixedPrecisionPolicy = cast(Any, _fsdp2).MixedPrecisionPolicy
+    CPUOffloadPolicy = cast(Any, _fsdp2).CPUOffloadPolicy
 
     offload_policy = CPUOffloadPolicy() if cpu_offload else None
 
@@ -704,7 +714,7 @@ def apply_fsdp2(model, mesh=None, cpu_offload=False, args=None):
     param_dtype = torch.bfloat16  # Default to bf16 as before
     reduce_dtype = torch.float32
 
-    if args.fp16:
+    if args is not None and args.fp16:
         param_dtype = torch.float16
 
     logger.info(f"FSDP MixedPrecision Policy: param_dtype={param_dtype}, reduce_dtype={reduce_dtype}")

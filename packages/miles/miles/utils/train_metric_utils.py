@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def log_perf_data_raw(
-    rollout_id: int, args: Namespace, is_primary_rank: bool, compute_total_fwd_flops: Callable
+    rollout_id: int, args: Namespace, is_primary_rank: bool, compute_total_fwd_flops: Callable | None = None
 ) -> None:
     timer_instance = Timer()
     log_dict_raw = deepcopy(timer_instance.log_dict())

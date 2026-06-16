@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Any
 
 import torch.distributed as dist
 
@@ -60,6 +61,9 @@ class ParallelState:
     is_pp_last_stage: bool = True
     vpp_size: int | None = 1
     microbatch_group_size_per_vp_stage: int | None = None
+    # Populated by the FSDP backend (create_fsdp_parallel_state); a torch DeviceMesh.
+    # Declared here so consumers reading it off the shared global state type-check.
+    dp_mesh: Any = None
 
     @property
     def is_ulysses_cp(self) -> bool:

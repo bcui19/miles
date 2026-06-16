@@ -103,7 +103,7 @@ def get_batch(
     qkv_format: str = "thd",
     get_position_ids: bool = False,
     allgather_cp: bool = False,
-) -> dict[str, torch.Tensor | list[torch.Tensor] | None]:
+) -> RolloutBatch:
     """
     Generate a CP-ready micro-batch with packed sequence parameters.
 
@@ -145,6 +145,10 @@ def get_batch(
     batch["unconcat_tokens"] = tokens
 
     cp_size = parallel_state.cp.size
+    # Set below only on the thd path; default so they are always bound (pad=0 is a
+    # no-op for F.pad / `if pad != 0`).
+    pad = 0
+    cp_rank = parallel_state.cp.rank
 
     if qkv_format == "bshd":
         max_seqlen = batch["max_seq_lens"][0]
@@ -316,7 +320,7 @@ class DataIterator:
         assert micro_batch_size is None or micro_batch_indices is None
         self.offset = 0
 
-    def get_next(self, keys: Sequence[str]) -> dict[str, list[object] | None]:
+    def get_next(self, keys: Sequence[str]) -> RolloutBatch:
         """Return the next micro-batch for the requested keys.
 
         - If `micro_batch_indices` is provided, selects rows according to the current
@@ -336,6 +340,7 @@ class DataIterator:
                     indices = self.micro_batch_indices[self.offset]
                     batch[key] = [vals[i] for i in indices]
                 else:
+                    assert self.micro_batch_size is not None
                     assert self.offset + self.micro_batch_size <= len(
                         vals
                     ), f"offset: {self.offset}, micro_batch_size: {self.micro_batch_size}, len(vals): {len(vals)}"
@@ -344,6 +349,7 @@ class DataIterator:
         if self.micro_batch_indices is not None:
             self.offset += 1
         else:
+            assert self.micro_batch_size is not None
             self.offset += self.micro_batch_size
         return batch
 
@@ -377,7 +383,7 @@ def get_data_iterator(
     parallel_state = get_parallel_state()
     dp_size = parallel_state.intra_dp.size
     dp_group = parallel_state.intra_dp.group
-    vpp_size = parallel_state.vpp_size
+    vpp_size = parallel_state.vpp_size or 1
     microbatch_group_size_per_vp_stage = parallel_state.microbatch_group_size_per_vp_stage
 
     cp_size = parallel_state.cp.size
@@ -463,6 +469,7 @@ def sync_actor_critic_data(
     - Log-probs and ref-log-probs are broadcast from src=0 when KL is used.
     Updates `rollout_data` in place with the synchronized tensors.
     """
+    assert rollout_data is not None
     log_probs_key = "log_probs" if not args.use_rollout_logprobs else "rollout_log_probs"
     values, log_probs, ref_log_probs = map(rollout_data.get, ("values", log_probs_key, "ref_log_probs"))
 
@@ -473,6 +480,8 @@ def sync_actor_critic_data(
     handles = []
 
     if not values:
+        # guaranteed by the early return above: if values is falsy, log_probs is present
+        assert log_probs is not None
         values = [torch.empty_like(log_prob) for log_prob in log_probs]
     for value in values:
         handles.append(dist.broadcast(value, src=1, group=group, async_op=True))

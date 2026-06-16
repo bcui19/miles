@@ -1,12 +1,13 @@
 import logging
 from collections.abc import Callable
+from typing import cast
 
 import torch
-import torch.distributed as dist
+import torch.distributed.nn as dist_nn  # differentiable collectives
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .parallel import get_parallel_state
+from .parallel import ParallelState, get_parallel_state
 
 try:
     from fla.ops.cp import build_cp_context as _fla_build_cp_context
@@ -105,19 +106,25 @@ def get_sum_of_sample_mean(
     if cp_size == 1:
 
         def sum_of_sample_mean(x: torch.Tensor) -> torch.Tensor:
-            return sum(
-                [
-                    (x_i * loss_mask_i).sum() / torch.clamp_min(loss_mask_i.sum(), 1)
-                    for x_i, loss_mask_i in zip(x.split(response_lengths, dim=0), loss_masks, strict=True)
-                ]
+            return cast(
+                torch.Tensor,
+                sum(
+                    [
+                        (x_i * loss_mask_i).sum() / torch.clamp_min(loss_mask_i.sum(), 1)
+                        for x_i, loss_mask_i in zip(x.split(response_lengths, dim=0), loss_masks, strict=True)
+                    ]
+                ),
             )
 
         def sum_of_token(x: torch.Tensor) -> torch.Tensor:
-            return sum(
-                [
-                    (x_i * loss_mask_i).sum()
-                    for x_i, loss_mask_i in zip(x.split(response_lengths, dim=0), loss_masks, strict=True)
-                ]
+            return cast(
+                torch.Tensor,
+                sum(
+                    [
+                        (x_i * loss_mask_i).sum()
+                        for x_i, loss_mask_i in zip(x.split(response_lengths, dim=0), loss_masks, strict=True)
+                    ]
+                ),
             )
 
     else:
@@ -133,23 +140,29 @@ def get_sum_of_sample_mean(
             cp_chunk_lengths.append(chunked_loss_masks[i].size(0))
 
         def sum_of_sample_mean(x: torch.Tensor) -> torch.Tensor:
-            return sum(
-                [
-                    (x_i * chunked_loss_mask).sum() / torch.clamp_min(loss_mask.sum(), 1)
-                    for x_i, chunked_loss_mask, loss_mask in zip(
-                        x.split(cp_chunk_lengths, dim=0), chunked_loss_masks, loss_masks, strict=True
-                    )
-                ]
+            return cast(
+                torch.Tensor,
+                sum(
+                    [
+                        (x_i * chunked_loss_mask).sum() / torch.clamp_min(loss_mask.sum(), 1)
+                        for x_i, chunked_loss_mask, loss_mask in zip(
+                            x.split(cp_chunk_lengths, dim=0), chunked_loss_masks, loss_masks, strict=True
+                        )
+                    ]
+                ),
             )
 
         def sum_of_token(x: torch.Tensor) -> torch.Tensor:
-            return sum(
-                [
-                    (x_i * chunked_loss_mask).sum()
-                    for x_i, chunked_loss_mask in zip(
-                        x.split(cp_chunk_lengths, dim=0), chunked_loss_masks, strict=True
-                    )
-                ]
+            return cast(
+                torch.Tensor,
+                sum(
+                    [
+                        (x_i * chunked_loss_mask).sum()
+                        for x_i, chunked_loss_mask in zip(
+                            x.split(cp_chunk_lengths, dim=0), chunked_loss_masks, strict=True
+                        )
+                    ]
+                ),
             )
 
     return sum_of_sample_mean if not calculate_per_token_loss else sum_of_token
@@ -236,16 +249,16 @@ def all_gather_with_cp(
         full_tensor = torch.cat([left, chunk_0, mid, chunk_1, right], dim=0)
 
     assert full_tensor.shape[0] == response_length, f"Expected {response_length}, got {full_tensor.shape}"
-    full_tensor = dist.nn.all_reduce(full_tensor, group=cp_group)
+    full_tensor = cast(torch.Tensor, dist_nn.all_reduce(full_tensor, group=cp_group))
     return full_tensor
 
 
 def slice_with_cp(
     tokens: torch.Tensor,
-    pad_value: tuple[int, float, Callable],
+    pad_value: int | float | Callable,
     qkv_format: str = "thd",
     max_seq_len: int | None = None,
-    parallel_state: object | None = None,
+    parallel_state: ParallelState | None = None,
 ) -> torch.Tensor:
     """
     Slice tokens into the local zigzag CP layout.
@@ -270,6 +283,7 @@ def slice_with_cp(
 
     if cp_size == 1:
         if qkv_format == "bshd":
+            assert max_seq_len is not None
             pad = max_seq_len - tokens.size(0)
             tokens = pad_tokens(tokens, pad)
         return tokens
@@ -278,6 +292,7 @@ def slice_with_cp(
     if qkv_format == "thd":
         chunk_size = (token_len + 2 * cp_size - 1) // (2 * cp_size)
     else:
+        assert max_seq_len is not None
         chunk_size = (max_seq_len + 2 * cp_size - 1) // (2 * cp_size)
 
     # pad
@@ -380,7 +395,7 @@ def allgather_cp_redistribute(
 
         # Single differentiable all-reduce to gather full response from all CP ranks
         all_cat = torch.cat(full_resps, dim=0)
-        all_cat = dist.nn.all_reduce(all_cat, group=cp_group)
+        all_cat = cast(torch.Tensor, dist_nn.all_reduce(all_cat, group=cp_group))
 
         # Re-slice each sample into zigzag CP pattern
         new_values = []
@@ -415,13 +430,13 @@ def slice_log_prob_with_cp(
         total_length, response_length, qkv_format, max_token_len
     )
 
-    chunk_1 = log_prob[logits_offset[0][0] - (prompt_length - 1) : logits_offset[0][1] - (prompt_length - 1)]
-    chunk_2 = log_prob[logits_offset[1][0] - (prompt_length - 1) : logits_offset[1][1] - (prompt_length - 1)]
+    lo1, hi1 = logits_offset[0][0] - (prompt_length - 1), logits_offset[0][1] - (prompt_length - 1)
+    lo2, hi2 = logits_offset[1][0] - (prompt_length - 1), logits_offset[1][1] - (prompt_length - 1)
 
     if isinstance(log_prob, list):
-        return chunk_1 + chunk_2
+        return log_prob[lo1:hi1] + log_prob[lo2:hi2]
     else:
-        return torch.cat([chunk_1, chunk_2], dim=0)
+        return torch.cat([log_prob[lo1:hi1], log_prob[lo2:hi2]], dim=0)
 
 
 def build_gdn_cp_context(module: nn.Module, cu_seqlens: torch.Tensor, device: torch.device):

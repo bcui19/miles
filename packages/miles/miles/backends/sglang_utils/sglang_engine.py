@@ -57,7 +57,7 @@ def _to_local_gpu_id(physical_gpu_id: int) -> int:
     )
 
 
-def launch_server_process(server_args: ServerArgs) -> multiprocessing.Process:
+def launch_server_process(server_args: ServerArgs) -> multiprocessing.Process | None:
     from sglang.srt.entrypoints.http_server import launch_server
 
     multiprocessing.set_start_method("spawn", force=True)
@@ -413,7 +413,9 @@ class SGLangEngine(RayActor):
 
             if response is not None:
                 response.raise_for_status()
-        kill_process_tree(self.process.pid)
+        # self.process is None on non-zero node ranks (launch_server_process returns early).
+        if self.process is not None:
+            kill_process_tree(self.process.pid)
 
     def get_weight_version(self):
         if self.node_rank != 0:
@@ -433,7 +435,7 @@ class SGLangEngine(RayActor):
             {"lora_name": lora_name},
         )
 
-    def release_memory_occupation(self, tags: list[str] = None):
+    def release_memory_occupation(self, tags: list[str] | None = None):
         """Release memory occupation. Available tags: weights, kv_cache."""
         self.flush_cache()
         return self._make_request(
@@ -441,7 +443,7 @@ class SGLangEngine(RayActor):
             {"tags": tags},
         )
 
-    def resume_memory_occupation(self, tags: list[str] = None):
+    def resume_memory_occupation(self, tags: list[str] | None = None):
         """
         Available tags for multi-stage resume: weights, kv_cache
         """

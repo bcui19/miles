@@ -1,6 +1,7 @@
 import argparse
 import dataclasses
 from dataclasses import dataclass
+from typing import Any
 
 import yaml
 
@@ -69,12 +70,15 @@ def parse_fsdp_cli(extra_args_provider=None):
             continue
 
         # Handle union types like int | None, str | None, etc.
-        if hasattr(f.type, "__args__"):  # Check if it's a Union type
+        # dataclasses.Field.type is typed as str, but at runtime holds the resolved
+        # annotation object (which carries __args__ for unions); treat it dynamically.
+        ftype: Any = f.type
+        if hasattr(ftype, "__args__"):  # Check if it's a Union type
             # For T | None, use T as the type
-            non_none_types = [t for t in f.type.__args__ if t is not type(None)]
+            non_none_types = [t for t in ftype.__args__ if t is not type(None)]
             arg_type = non_none_types[0] if non_none_types else str
         else:
-            arg_type = f.type
+            arg_type = ftype
 
         if arg_type is bool:
             parser.add_argument(f"--{f.name.replace('_', '-')}", action="store_true")

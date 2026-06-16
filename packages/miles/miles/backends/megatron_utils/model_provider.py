@@ -153,6 +153,7 @@ def get_model_provider_func(
         # Experimental loading arguments from yaml
         assert config is None, "miles builds the config from args, so it expects config to be None"
         config = core_transformer_config_from_args(args)
+        assert config is not None
 
         if args.spec is not None:
             transformer_layer_spec = import_module(args.spec)

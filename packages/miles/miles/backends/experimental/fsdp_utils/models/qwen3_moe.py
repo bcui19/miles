@@ -101,6 +101,7 @@ class Qwen3MoeSparseMoeBlock(nn.Module):
         # we cast back to the input dtype
         routing_weights = routing_weights.to(hidden_states.dtype)
 
+        assert Qwen3MoeSparseMoeBlock.dispatcher is not None
         selected_experts = Qwen3MoeSparseMoeBlock.dispatcher.dispatch(selected_experts)
 
         w13_weight = torch.stack(
