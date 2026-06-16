@@ -129,9 +129,10 @@ class GCEEnvironment(BaseEnvironment):
             self._vm = None
             raise
 
-        self._container_id = response.container_id
+        container_id = response.container_id
+        self._container_id = container_id
         self._cwd = self.workspace_dir
-        self.logger.info("GCE start: container=%s", self._container_id[:12])
+        self.logger.info("GCE start: container=%s", container_id[:12])
 
     async def _stop_async(self) -> None:
         container_id = self._container_id

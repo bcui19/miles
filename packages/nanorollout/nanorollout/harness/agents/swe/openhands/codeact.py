@@ -151,6 +151,7 @@ def run_agent(
     config: Optional[AgentConfig] = None,
     workspace_dir: str = "/workspace",
     environment: str = "docker",
+    instance: Optional[dict[str, Any]] = None,
 ) -> "AgentResult":
     """
     Convenience function to run an agent on a task.
@@ -172,7 +173,9 @@ def run_agent(
     elif environment == "enroot":
         from nanorollout.envs.shell_env.enroot import EnrootEnvironment
 
-        runner = EnrootEnvironment(image=image, workspace_dir=workspace_dir)
+        if instance is None:
+            raise ValueError("enroot environment requires `instance` (with an 'instance_id')")
+        runner = EnrootEnvironment(image=image, instance=instance, workspace_dir=workspace_dir)
     else:
         raise ValueError(f"Unsupported environment: {environment}")
 

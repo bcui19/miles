@@ -153,11 +153,11 @@ class StrReplaceEditor:
         self,
         command: str,
         path_str: str,
-        file_text: str = None,
-        view_range: List[int] = None,
-        old_str: str = None,
-        new_str: str = None,
-        insert_line: int = None,
+        file_text: Optional[str] = None,
+        view_range: Optional[List[int]] = None,
+        old_str: Optional[str] = None,
+        new_str: Optional[str] = None,
+        insert_line: Optional[int] = None,
         concise: bool = False,
         python_only: bool = True,
     ) -> EditorResult:
@@ -167,10 +167,16 @@ class StrReplaceEditor:
         if command == "view":
             return self.view(path, view_range, concise=concise, python_only=python_only)
         elif command == "create":
+            if file_text is None:
+                raise EditorError("Parameter `file_text` is required for command: create")
             return self.create(path, file_text)
         elif command == "str_replace":
+            if old_str is None or new_str is None:
+                raise EditorError("Parameters `old_str` and `new_str` are required for command: str_replace")
             return self.str_replace(path, old_str, new_str)
         elif command == "insert":
+            if insert_line is None or new_str is None:
+                raise EditorError("Parameters `insert_line` and `new_str` are required for command: insert")
             return self.insert(path, insert_line, new_str)
         elif command == "undo_edit":
             return self.undo_edit(path)

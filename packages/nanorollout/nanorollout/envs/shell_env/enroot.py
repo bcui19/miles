@@ -83,7 +83,7 @@ class EnrootEnvironment(ShellEnvironment):
         self.container_name: Optional[str] = None
         self.container_pid: Optional[int] = None
         self.container_process: Optional[subprocess.Popen[str]] = None
-        self._orphan_reaper_process: Optional[subprocess.Popen[str]] = None
+        self._orphan_reaper_process: Optional[subprocess.Popen[bytes]] = None
         self._file_history: dict[str, list[str]] = {}
         self._resolve_image_path()
 

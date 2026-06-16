@@ -84,7 +84,7 @@ def _build_miniswe_agent(
     return TerminalMiniSweAgent(
         environment=env_obj,
         config=agent_config,
-        step_timeout=task.environment.get("env_step_timeout"),
+        step_timeout=task.environment.get("env_step_timeout") or 60,
     )
 
 
@@ -126,11 +126,6 @@ def _build_terminus2_agent(
         proactive_summarization_threshold=request.extra_args.get(
             "proactive_summarization_threshold",
             8000,
-        ),
-        ubuntu_mirror=request.extra_args.get("ubuntu_mirror", "us.archive.ubuntu.com"),
-        ubuntu_mirror_apt_update=request.extra_args.get(
-            "ubuntu_mirror_apt_update",
-            True,
         ),
     )
 

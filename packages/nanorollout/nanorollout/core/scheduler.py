@@ -149,4 +149,6 @@ def _build_worker():
     return _ray_worker
 
 
-_ray_worker = _build_worker()
+# Annotated Any: ray's parametrized @ray.remote(...) decorator isn't fully typed,
+# so pyright sees a plain function without .remote()/.options().
+_ray_worker: Any = _build_worker()

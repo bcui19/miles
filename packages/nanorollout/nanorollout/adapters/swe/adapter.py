@@ -77,8 +77,8 @@ class SweTaskAdapter(TaskAdapter):
     agent_builder: AgentBuilder
     agent_runner: Optional[AgentRunner] = None
     result_hook: Optional[ResultHook] = None
-    env_logger_name: str = ENV_LOGGER_NAME
-    eval_logger_name: str = "nanorollout.adapters.swe.task"
+    env_logger_name: Optional[str] = ENV_LOGGER_NAME
+    eval_logger_name: Optional[str] = "nanorollout.adapters.swe.task"
 
     def create_environment(
         self,

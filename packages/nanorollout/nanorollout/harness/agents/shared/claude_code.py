@@ -436,24 +436,16 @@ class ClaudeCode(InstalledAgentBase):
                 break
 
         agent_extra: dict[str, Any] | None = {}
-        cwds = sorted({event.get("cwd") for event in events if isinstance(event.get("cwd"), str) and event.get("cwd")})
+        cwds = sorted({cwd for event in events if isinstance((cwd := event.get("cwd")), str) and cwd})
         if cwds:
             agent_extra["cwds"] = cwds
         git_branches = sorted(
-            {
-                event.get("gitBranch")
-                for event in events
-                if isinstance(event.get("gitBranch"), str) and event.get("gitBranch")
-            }
+            {branch for event in events if isinstance((branch := event.get("gitBranch")), str) and branch}
         )
         if git_branches:
             agent_extra["git_branches"] = git_branches
         agent_ids = sorted(
-            {
-                event.get("agentId")
-                for event in events
-                if isinstance(event.get("agentId"), str) and event.get("agentId")
-            }
+            {agent_id for event in events if isinstance((agent_id := event.get("agentId")), str) and agent_id}
         )
         if agent_ids:
             agent_extra["agent_ids"] = agent_ids
@@ -760,11 +752,11 @@ class ClaudeCode(InstalledAgentBase):
         escaped_instruction = shlex.quote(instruction)
         use_bedrock = self._is_bedrock_mode()
 
-        env: dict[str, str | None] = {
+        env: dict[str, str] = {
             "ANTHROPIC_API_KEY": self._get_env("ANTHROPIC_API_KEY") or self._get_env("ANTHROPIC_AUTH_TOKEN") or "",
-            "ANTHROPIC_BASE_URL": self._get_env("ANTHROPIC_BASE_URL"),
+            "ANTHROPIC_BASE_URL": self._get_env("ANTHROPIC_BASE_URL") or "",
             "CLAUDE_CODE_OAUTH_TOKEN": self._get_env("CLAUDE_CODE_OAUTH_TOKEN") or "",
-            "CLAUDE_CODE_MAX_OUTPUT_TOKENS": self._get_env("CLAUDE_CODE_MAX_OUTPUT_TOKENS"),
+            "CLAUDE_CODE_MAX_OUTPUT_TOKENS": self._get_env("CLAUDE_CODE_MAX_OUTPUT_TOKENS") or "",
             "FORCE_AUTO_BACKGROUND_TASKS": "1",
             "ENABLE_BACKGROUND_TASKS": "1",
         }

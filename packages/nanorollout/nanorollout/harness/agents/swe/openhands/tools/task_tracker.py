@@ -1,6 +1,6 @@
 """Task tracker tool implementation for OpenHands agents."""
 
-from typing import Optional
+from typing import Any, Optional
 
 from nanorollout.envs.shell_env.types import ToolResult
 
@@ -217,7 +217,7 @@ class TaskTrackerTool(BaseTool):
     def execute(
         self,
         environment,
-        command: str,
+        command: str = "view",
         task_list: Optional[list[dict]] = None,
         **kwargs,
     ) -> ToolResult:
@@ -266,7 +266,7 @@ class TaskTrackerTool(BaseTool):
                 success=False,
             )
 
-        seen_ids: set[str] = set()
+        seen_ids: set[Any] = set()
         for task in task_list:
             task_id = task.get("id")
             if task_id in seen_ids:

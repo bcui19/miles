@@ -113,11 +113,11 @@ class DockerEnvironment(ShellEnvironment):
                 workdir=self._cwd,
                 demux=False,
             )
-            output_str = output.decode("utf-8", errors="replace") if output else ""
+            output_str = output.decode("utf-8", errors="replace") if isinstance(output, bytes) else ""
             output_str, new_cwd = extract_cwd_marker(output_str, marker)
             if new_cwd:
                 self._cwd = new_cwd
-            return ExecutionResult(output=output_str, exit_code=exit_code)
+            return ExecutionResult(output=output_str, exit_code=exit_code or 0)
         except Exception as e:
             return ExecutionResult(output=f"Error: {str(e)}", exit_code=1)
 

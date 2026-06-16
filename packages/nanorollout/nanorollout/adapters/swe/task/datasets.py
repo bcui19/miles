@@ -82,7 +82,12 @@ class SweDatasetAdapter:
         load_kwargs: dict[str, Any] = {}
         if self.dataset_revision:
             load_kwargs["revision"] = self.dataset_revision
-        return [self.normalize_row(dict(row)) for row in load_dataset(self.source_name, split=split, **load_kwargs)]
+        # load_dataset is a function; the `datasets` package's typing confuses
+        # pyright into seeing it as a module.
+        return [
+            self.normalize_row(dict(row))
+            for row in load_dataset(self.source_name, split=split, **load_kwargs)  # pyright: ignore[reportCallIssue]
+        ]
 
     def resolve_instance(self, instance_id: str, split: str) -> dict[str, Any]:
         instance = _select_instance(self.load_instances(split), instance_id)
@@ -130,7 +135,7 @@ class SweDatasetAdapter:
             env_obj,
             task.payload,
             task.evaluation.get("eval_timeout"),
-            task.environment.get("workspace_dir"),
+            task.environment["workspace_dir"],
         )
 
 
@@ -167,7 +172,7 @@ class SweRebenchDatasetAdapter(SweDatasetAdapter):
             env_obj,
             task.payload,
             task.evaluation.get("eval_timeout"),
-            task.environment.get("workspace_dir"),
+            task.environment["workspace_dir"],
         )
 
 
@@ -241,7 +246,7 @@ class SweBenchProDatasetAdapter(SweDatasetAdapter):
             env_obj,
             task.payload,
             task.evaluation.get("eval_timeout"),
-            task.environment.get("workspace_dir"),
+            task.environment["workspace_dir"],
             scripts_dir,
         )
 

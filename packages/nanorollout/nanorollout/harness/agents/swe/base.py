@@ -130,8 +130,12 @@ class BaseAgent(ABC):
         """Get the OpenAI-compatible tool schemas for all tools."""
         return [tool.to_openai_schema() for tool in self.tools]
 
-    def _call_llm(self) -> dict[str, Any]:
-        """Make a completion call to the LLM."""
+    def _call_llm(self) -> Any:
+        """Make a completion call to the LLM.
+
+        Returns the (untyped) litellm completion response, or None on a handled
+        error path.
+        """
         kwargs = {
             "model": self.config.model,
             "messages": self.messages,

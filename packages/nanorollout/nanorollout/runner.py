@@ -249,7 +249,7 @@ def get_agent_tools_json(agent: Any) -> Optional[Dict[str, Any]]:
     get_tools_schema = getattr(agent, "get_tools_schema", None)
     if not callable(get_tools_schema):
         return None
-    tools_schema = get_tools_schema()
+    tools_schema: Any = get_tools_schema()
     return tools_schema if tools_schema else None
 
 

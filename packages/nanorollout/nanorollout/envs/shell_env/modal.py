@@ -11,9 +11,19 @@ import shlex
 import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
-from modal import App, Image, Sandbox, Secret, Volume
+if TYPE_CHECKING:
+    # modal ships incomplete type information; pyright misresolves these
+    # re-exported classes as submodules. Declare them as Any for type checking
+    # while importing the real objects at runtime.
+    App: Any
+    Image: Any
+    Sandbox: Any
+    Secret: Any
+    Volume: Any
+else:
+    from modal import App, Image, Sandbox, Secret, Volume
 
 from .base import ExecutionResult, ShellEnvironment, extract_cwd_marker
 
@@ -114,9 +124,9 @@ class ModalEnvironment(ShellEnvironment):
         self.timeout = self.config.timeout
         self._cwd = self.config.cwd
 
-        self._app: "App | None" = None
-        self._image: "Image | None" = None
-        self._sandbox: "Sandbox | None" = None
+        self._app: Any = None
+        self._image: Any = None
+        self._sandbox: Any = None
 
     def start(self) -> None:
         if self._sandbox is not None:
@@ -345,7 +355,7 @@ class ModalEnvironment(ShellEnvironment):
             ],
         )
 
-    def _build_image(self) -> "Image":
+    def _build_image(self) -> Any:
         assert Image is not None
         image_path = Path(self.config.image).expanduser()
         if image_path.exists():

@@ -119,8 +119,8 @@ class TerminalTaskAdapter(TaskAdapter):
     agent_runner: TerminalAgentRunner
     tools_json_builder: Optional[Callable[[Any], Optional[Dict[str, Any]]]] = None
     exit_status_builder: ExitStatusBuilder = default_terminal_exit_status
-    env_logger_name: str = ENV_LOGGER_NAME
-    eval_logger_name: str = "nanorollout.adapters.terminal.task.grading"
+    env_logger_name: Optional[str] = ENV_LOGGER_NAME
+    eval_logger_name: Optional[str] = "nanorollout.adapters.terminal.task.grading"
 
     def create_environment(
         self,
@@ -160,7 +160,7 @@ class TerminalTaskAdapter(TaskAdapter):
             revision=spec.repo_revision,
             refresh=spec.refresh_repo,
         )
-        instance = resolve_tb_instance(instance_id=request.instance_id, repo_dir=repo_dir)
+        instance = resolve_tb_instance(instance_id=request.instance_id, repo_dir=str(repo_dir))
         image = ensure_tb_image(instance, env_type=request.env_type)
         agent_timeout, eval_timeout = resolve_tb_timeouts(instance, spec.timeout_args())
         return TaskSpec(

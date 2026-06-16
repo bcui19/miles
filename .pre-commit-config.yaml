@@ -1,1 +1,85 @@
-packages/miles/.pre-commit-config.yaml
+# TITO root pre-commit config.
+#
+# This used to be a symlink to packages/miles/.pre-commit-config.yaml. It is now a
+# real, TITO-local file so we can add a pyright type-checking hook without pushing
+# it back to the upstream miles subtree.
+#
+# NOTE: because this is no longer a symlink, it does NOT auto-sync when miles is
+# pulled from upstream. If miles bumps its hook versions, mirror the relevant
+# changes here by hand.
+
+default_language_version:
+  python: python3
+
+# Never run hooks on vendored/external copies or scratch worktrees. (These are
+# untracked today, so pre-commit skips them anyway; this makes it explicit.)
+exclude: '^(\.claude/|baseline-submodules/)'
+
+ci:
+  autofix_prs: true
+  autoupdate_commit_msg: '[pre-commit.ci] pre-commit suggestions'
+  autoupdate_schedule: quarterly
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: check-yaml
+      - id: check-case-conflict
+      - id: detect-private-key
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: requirements-txt-fixer
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.7
+    hooks:
+      - id: ruff-check
+        args: [ --fix ]
+
+  - repo: https://github.com/PyCQA/autoflake
+    rev: v2.0.2
+    hooks:
+      - id: autoflake
+        args: [--remove-all-unused-imports, --in-place]
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args:
+          - "--profile=black"        # align style with black
+          - "--filter-files"         # ignore files in .gitignore
+        additional_dependencies: []  # Add plugins when needed
+
+  - repo: https://github.com/psf/black
+    rev: 24.3.0
+    hooks:
+      - id: black
+        name: Format code
+        additional_dependencies: ['click==8.0.2']
+
+  - repo: https://github.com/RobertCraigie/pyright-python
+    rev: v1.1.410
+    hooks:
+      - id: pyright
+        # Scope comes from [tool.pyright] in pyrightconfig.json (nanorollout +
+        # orchestrator; miles is excluded), so run over the configured paths
+        # rather than only changed files.
+        pass_filenames: false
+
+  - repo: local
+    hooks:
+      - id: ban-mpu-get
+        name: Ban direct mpu.get_* calls (use ParallelState)
+        language: pygrep
+        entry: 'mpu\.get_'
+        types: [python]
+        exclude: '(backends/megatron_utils/parallel\.py|tools/convert_to_hf\.py|miles_plugins/|examples/)'
+
+      - id: ban-bare-auto-loaders
+        name: Ban bare Auto{Config,Tokenizer}.from_pretrained (use load_hf_config / load_tokenizer)
+        language: pygrep
+        entry: '(AutoConfig|AutoTokenizer)\.from_pretrained'
+        types: [python]
+        exclude: '(miles/utils/hf_config\.py|miles/utils/processing_utils\.py|tests/|test_utils/|miles_plugins/|examples/)'

@@ -14,10 +14,11 @@ import tarfile
 import threading
 import time
 from dataclasses import dataclass
-from typing import Iterator, Optional
+from typing import Any, Iterator, Literal, Optional, overload
 
 import docker
 from docker.errors import APIError, NotFound
+from docker.models.containers import Container
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ class DockerRuntime:
         ``cpu_limit`` is interpreted as whole CPUs; ``memory_limit_mb`` in
         MiB. Zero means unconstrained on either axis.
         """
-        kwargs: dict[str, object] = {
+        kwargs: dict[str, Any] = {
             "command": "/bin/bash",
             "stdin_open": True,
             "tty": True,
@@ -255,7 +256,11 @@ class DockerRuntime:
 
     # ----- helpers -----
 
-    def _lookup(self, container_id: str, missing_ok: bool = False):
+    @overload
+    def _lookup(self, container_id: str, missing_ok: Literal[False] = ...) -> Container: ...
+    @overload
+    def _lookup(self, container_id: str, missing_ok: Literal[True]) -> Optional[Container]: ...
+    def _lookup(self, container_id: str, missing_ok: bool = False) -> Optional[Container]:
         try:
             return self._client.containers.get(container_id)
         except NotFound:
