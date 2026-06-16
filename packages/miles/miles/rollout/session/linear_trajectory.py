@@ -2,7 +2,7 @@ import asyncio
 import logging
 import uuid
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 from miles.rollout.session.session_errors import MessageValidationError, SessionNotFoundError, TokenizationError
 from miles.rollout.session.session_types import SessionRecord
@@ -62,11 +62,14 @@ class LinearTrajectory:
         Must be called under ``self.lock``.
         """
         if not self.token_ids:
-            return tito_tokenizer.render_messages(
-                request_messages,
-                tools=tools,
-                add_generation_prompt=True,
-                tokenize=True,
+            return cast(
+                list[int],
+                tito_tokenizer.render_messages(
+                    request_messages,
+                    tools=tools,
+                    add_generation_prompt=True,
+                    tokenize=True,
+                ),
             )
 
         # 1. Detect agent retries and roll back (at most one assistant step).
@@ -273,11 +276,14 @@ class SessionRegistry:
             return None
         try:
             tools = session.records[-1].request.get("tools") if session.records else None
-            expected_ids = self.tito_tokenizer.render_messages(
-                session.messages,
-                tools=tools,
-                add_generation_prompt=False,
-                tokenize=True,
+            expected_ids = cast(
+                list[int],
+                self.tito_tokenizer.render_messages(
+                    session.messages,
+                    tools=tools,
+                    add_generation_prompt=False,
+                    tokenize=True,
+                ),
             )
             mismatches = self.comparator.compare_sequences(expected_ids, session.token_ids)
             return [m.to_dict() for m in mismatches]

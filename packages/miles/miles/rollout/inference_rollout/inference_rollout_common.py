@@ -179,7 +179,7 @@ class InferenceRolloutFn:
         self.eval_prompt_dataset_cache = {}
 
     async def __call__(self, input: RolloutFnInput) -> RolloutFnOutput:
-        if input.evaluation:
+        if isinstance(input, RolloutFnEvalInput):
             return await self._call_eval(input)
         return await self._call_train(input)
 

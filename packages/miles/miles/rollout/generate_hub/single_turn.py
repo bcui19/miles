@@ -37,6 +37,7 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
         args, input_ids=input_ids, sampling_params=sampling_params, multimodal_inputs=sample.multimodal_inputs
     )
     if payload is None:
+        assert halt_status is not None
         sample.status = halt_status
         return GenerateFnOutput(samples=sample)
 

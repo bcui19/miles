@@ -32,7 +32,7 @@ def _stats(values: list[float]) -> dict[str, float]:
 
 
 def post_process_rewards(args, samples: list[Sample]) -> tuple[list[float], list[float]]:
-    raw_rewards = [float(s.reward or 0.0) for s in samples]
+    raw_rewards = [float(s.reward) if isinstance(s.reward, (int, float)) else 0.0 for s in samples]
 
     def episode_key(sample: Sample) -> tuple | None:
         metadata = sample.metadata or {}

@@ -38,10 +38,10 @@ async def eval_rollout_single_dataset(
             tokenizer=tokenizer,
             processor=processor,
             max_length=args.eval_max_prompt_len,
-            prompt_key=dataset_cfg.input_key,
+            prompt_key=dataset_cfg.input_key or "text",
             label_key=dataset_cfg.label_key,
             multimodal_keys=args.multimodal_keys,
-            metadata_key=dataset_cfg.metadata_key,
+            metadata_key=dataset_cfg.metadata_key or "metadata",
             tool_key=dataset_cfg.tool_key,
             apply_chat_template=args.apply_chat_template,
             apply_chat_template_kwargs=args.apply_chat_template_kwargs,
@@ -60,7 +60,7 @@ async def eval_rollout_single_dataset(
     # do multiple samples for eval prompts
     sample_index = 0
     for _i, prompt_sample in enumerate(dataset.samples):
-        for j in range(dataset_cfg.n_samples_per_eval_prompt):
+        for j in range(dataset_cfg.n_samples_per_eval_prompt or 1):
             # use the same prompt for multiple samples
             sample = copy.deepcopy(prompt_sample)
             sample.index = sample_index

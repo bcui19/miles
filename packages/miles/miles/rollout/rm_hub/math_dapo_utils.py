@@ -203,7 +203,8 @@ def is_correct_minerva(
 
     # Process ground truth
     if gt_need_extract:
-        gt = normalize_final_answer(remove_boxed(last_boxed_only_string(gt)))
+        boxed = last_boxed_only_string(gt)
+        gt = normalize_final_answer(remove_boxed(boxed)) if boxed else normalize_final_answer(gt)
     else:
         gt = normalize_final_answer(gt)
 
@@ -239,7 +240,7 @@ def is_correct_strict_box(pred: str, gt: str, pause_tokens_index: list[int] | No
 
 def verify(
     solution_str: str, answer: str, strict_box_verify: bool = False, pause_tokens_index: list[int] | None = None
-) -> bool:
+) -> tuple[bool, str | None]:
     """Verify if the solution is correct.
 
     Args:
@@ -264,7 +265,7 @@ def compute_score(
     ground_truth: str,
     strict_box_verify: bool = False,
     pause_tokens_index: list[int] | None = None,
-) -> float:
+) -> dict:
     """Compute the reward score for a solution.
 
     Args:

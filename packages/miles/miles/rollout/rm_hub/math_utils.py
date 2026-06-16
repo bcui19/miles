@@ -484,6 +484,6 @@ def grade_answer_verl(solution_str, ground_truth):
     if "\\boxed" in ground_truth:
         ground_truth = extract_answer(ground_truth)
     given_answer = extract_answer(solution_str)
-    if given_answer is None:
+    if given_answer is None or ground_truth is None:
         return False
     return grade_answer_mathd(given_answer, ground_truth) or grade_answer_sympy(given_answer, ground_truth)

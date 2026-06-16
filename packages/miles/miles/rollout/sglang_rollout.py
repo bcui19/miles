@@ -272,7 +272,7 @@ async def generate_and_rm(
             generate_fn = load_generate_function(custom_func_path) if custom_func_path else None
             if generate_fn is not None:
                 output = await generate_fn(
-                    GenerateFnInput(state=state, sample=sample, sampling_params=sampling_params, evaluation=evaluation)
+                    GenerateFnInput(state=state, sample=sample, sampling_params=sampling_params, evaluation=evaluation)  # type: ignore[arg-type]
                 )
                 sample = output.samples
             else:
@@ -291,6 +291,7 @@ async def generate_and_rm(
         # for multi agent system, the reward of some sample is calculated during generation.
         samples_need_reward = [sample for sample in samples if sample.reward is None]
         rewards = await batched_async_rm(args, samples_need_reward)
+        assert rewards is not None
         for sample, reward in zip(samples_need_reward, rewards, strict=False):
             sample.reward = reward
         return samples
@@ -333,6 +334,7 @@ async def generate_and_rm_group(
     # for the rm that need the whole group, we will do the rm here
     if not state.aborted and args.group_rm:
         rewards = await batched_async_rm(args, group)
+        assert rewards is not None
         for sample, reward in zip(group, rewards, strict=False):
             sample.reward = reward
 
@@ -430,7 +432,7 @@ async def generate_rollout_async(
             group: list[Sample] = task.result()
 
             if do_print:
-                sample = group[0][0] if isinstance(group[0], list) else group[0]
+                sample = group[0]
                 logger.info(
                     f"First rollout sample: {[str(sample.prompt) + sample.response]}, label: {str(sample.label)[:100]}, reward: {sample.reward}",
                 )
@@ -489,7 +491,7 @@ async def generate_rollout_async(
 EVAL_PROMPT_DATASET = {}
 
 
-async def eval_rollout(args: Namespace, rollout_id: int) -> tuple[dict[str, dict[str, list[Any]]], list[list[Sample]]]:
+async def eval_rollout(args: Namespace, rollout_id: int) -> tuple[RolloutFnEvalOutput, list[list[Sample]]]:
     assert not args.group_rm, "Group RM is not supported for eval rollout"
 
     coros = []
@@ -527,10 +529,10 @@ async def eval_rollout_single_dataset(
             tokenizer=tokenizer,
             processor=processor,
             max_length=args.eval_max_prompt_len,
-            prompt_key=dataset_cfg.input_key,
+            prompt_key=dataset_cfg.input_key or "text",
             label_key=dataset_cfg.label_key,
             multimodal_keys=args.multimodal_keys,
-            metadata_key=dataset_cfg.metadata_key,
+            metadata_key=dataset_cfg.metadata_key or "metadata",
             tool_key=dataset_cfg.tool_key,
             apply_chat_template=args.apply_chat_template,
             apply_chat_template_kwargs=args.apply_chat_template_kwargs,
@@ -553,7 +555,7 @@ async def eval_rollout_single_dataset(
     # do multiple samples for eval prompts
     sample_index = 0
     for _i, prompt_sample in enumerate(dataset.samples):
-        for j in range(dataset_cfg.n_samples_per_eval_prompt):
+        for j in range(dataset_cfg.n_samples_per_eval_prompt or 1):
             # use the same prompt for multiple samples
             sample = copy.deepcopy(prompt_sample)
             sample.index = sample_index

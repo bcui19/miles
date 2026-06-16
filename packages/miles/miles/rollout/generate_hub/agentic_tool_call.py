@@ -143,7 +143,7 @@ def _add_arguments(parser: argparse.ArgumentParser):
     )
 
 
-generate.add_arguments = _add_arguments
+generate.add_arguments = _add_arguments  # type: ignore[attr-defined]
 
 
 # Process keys to match ChatCompletionRequest input

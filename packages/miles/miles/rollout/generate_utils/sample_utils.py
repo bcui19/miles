@@ -42,8 +42,10 @@ def _merge_sample_pair(a: Sample, b: Sample, tokenizer) -> Sample:
         assert _startswith(short=a.tokens, long=b.tokens), "b.tokens must start with a.tokens"
         assert obs_len > 0, f"obs_len must be > 0, got {obs_len}"
         if a.rollout_routed_experts is not None:
+            assert b.rollout_routed_experts is not None
             assert a.rollout_routed_experts.shape[0] <= b.rollout_routed_experts.shape[0]
         if a.rollout_indexer_topk is not None:
+            assert b.rollout_indexer_topk is not None
             assert a.rollout_indexer_topk.shape[0] <= b.rollout_indexer_topk.shape[0]
         assert a.status == Sample.Status.COMPLETED, f"a.status must be COMPLETED, got {a.status}"
 
@@ -59,9 +61,9 @@ def _merge_sample_pair(a: Sample, b: Sample, tokenizer) -> Sample:
             response_length=a.response_length + obs_len + b.response_length,
             label=_merge_equal_value("label"),
             reward=_merge_equal_value("reward"),
-            loss_mask=a.loss_mask + [0] * obs_len + b.loss_mask,
+            loss_mask=(a.loss_mask or []) + [0] * obs_len + (b.loss_mask or []),
             weight_versions=a.weight_versions + b.weight_versions,
-            rollout_log_probs=a.rollout_log_probs + [0.0] * obs_len + b.rollout_log_probs,
+            rollout_log_probs=(a.rollout_log_probs or []) + [0.0] * obs_len + (b.rollout_log_probs or []),
             rollout_routed_experts=b.rollout_routed_experts,
             rollout_indexer_topk=b.rollout_indexer_topk,
             remove_sample=_merge_equal_value("remove_sample"),

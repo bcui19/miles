@@ -325,7 +325,12 @@ def generate_rollout(args, rollout_id: int, data_source: Any, evaluation: bool =
     }
     # batch reward distribution — a bad buffer slice (degenerate rewards)
     # shows up here before it shows up as a loss spike
-    rewards = [s.reward for group in groups for s in group if not (s.metadata or {}).get("padding")]
+    rewards = [
+        float(s.reward)
+        for group in groups
+        for s in group
+        if not (s.metadata or {}).get("padding") and isinstance(s.reward, (int, float))
+    ]
     stats = compute_statistics(rewards)
     stats["std"] = float(np.std(rewards))
     metrics |= dict_add_prefix(stats, "tito_buffer/reward/")
@@ -360,6 +365,6 @@ def add_arguments(parser):
     return parser
 
 
-generate_rollout.add_arguments = add_arguments
-generate_rollout.training_started = training_started
-generate_rollout.weights_synced = weights_synced
+generate_rollout.add_arguments = add_arguments  # type: ignore[attr-defined]
+generate_rollout.training_started = training_started  # type: ignore[attr-defined]
+generate_rollout.weights_synced = weights_synced  # type: ignore[attr-defined]

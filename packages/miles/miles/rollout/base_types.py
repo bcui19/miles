@@ -46,14 +46,14 @@ class RolloutFnEvalInput(RolloutFnBaseInput):
 @dataclass
 class RolloutFnTrainOutput:
     samples: list[list[Sample]]
-    metrics: dict[str, Any] = None
+    metrics: dict[str, Any] | None = None
 
 
 # TODO make it frozen
 @dataclass
 class RolloutFnEvalOutput:
     data: dict[str, dict[str, Any]]
-    metrics: dict[str, Any] = None
+    metrics: dict[str, Any] | None = None
 
 
 RolloutFnInput = RolloutFnTrainInput | RolloutFnEvalInput

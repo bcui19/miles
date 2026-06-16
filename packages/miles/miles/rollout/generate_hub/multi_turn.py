@@ -48,6 +48,7 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
 
         payload, halt_status = compute_request_payload(args, sample.tokens, input.sampling_params)
         if payload is None:
+            assert halt_status is not None
             sample.status = halt_status
             if args.generate_multi_samples and multi_samples:
                 multi_samples[-1].status = halt_status
@@ -85,4 +86,4 @@ def _add_arguments(parser: argparse.ArgumentParser):
     parser.add_argument("--generate-multi-samples", action="store_true")
 
 
-generate.add_arguments = _add_arguments
+generate.add_arguments = _add_arguments  # type: ignore[attr-defined]

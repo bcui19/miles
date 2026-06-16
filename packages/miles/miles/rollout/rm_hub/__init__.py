@@ -35,7 +35,7 @@ async def async_rm(args, sample: Sample, **kwargs):
     metadata = sample.metadata if isinstance(sample.metadata, dict) else {}
     rm_type = (metadata.get("rm_type") or args.rm_type or "").strip()
     response = sample.response
-    label = sample.label
+    label = sample.label or ""
     if rm_type.startswith("boxed_"):
         response = extract_boxed_answer(response) or ""
         rm_type = rm_type[len("boxed_") :]
@@ -71,9 +71,10 @@ async def batched_async_rm(
     samples: list[Sample],
     inplace_set_reward_field: bool = False,
     **kwargs,
-) -> list[int | float] | None:
+) -> list | None:
     if inplace_set_reward_field:
         rewards = await batched_async_rm(args, samples, **kwargs)
+        assert rewards is not None
         for sample, reward in zip(samples, rewards, strict=True):
             assert (
                 sample.reward is None

@@ -113,7 +113,7 @@ class RolloutDataSource(DataSource):
             samples.append(group)
         return samples
 
-    def add_samples(self, samples: list[list[Sample]]):
+    def add_samples(self, samples: list[list[Sample]]) -> None:
         raise RuntimeError(f"Cannot add samples to {self.__class__.__name__}. This is a read-only data source.")
 
     def save(self, rollout_id):
@@ -153,6 +153,7 @@ class RolloutDataSource(DataSource):
         self.metadata = state_dict.get("metadata", {})
 
         if self.args.rollout_global_dataset and self.args.rollout_shuffle:
+            assert self.dataset is not None
             self.dataset.shuffle(self.epoch_id)
 
 
