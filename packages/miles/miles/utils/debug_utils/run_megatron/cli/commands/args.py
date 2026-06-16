@@ -2,14 +2,20 @@ from __future__ import annotations
 
 import dataclasses
 from pathlib import Path
+from typing import Any
 
 
 def _field(
     default: object = dataclasses.MISSING,
     *,
     help: str,
-) -> dataclasses.Field:  # type: ignore[type-arg]
-    """Shorthand to create a dataclass field with typer metadata."""
+) -> Any:
+    """Shorthand to create a dataclass field with typer metadata.
+
+    Returns Any so the typed field annotations (str/Path/bool/...) accept it:
+    pyright does not treat a wrapper around dataclasses.field() as a field
+    specifier, so a precise return type would be flagged as a mismatch.
+    """
     return dataclasses.field(default=default, metadata={"help": help})  # type: ignore[arg-type]
 
 
