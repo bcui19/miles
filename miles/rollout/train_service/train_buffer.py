@@ -357,6 +357,11 @@ def add_arguments(parser):
         default=1,
         help="Pad batch sample count to this multiple (set to the training dp_size) so dynamic batching never trims real samples.",
     )
+    add_once(
+        "--tito-advantage-mode",
+        choices=("grpo", "leave_one_out"),
+        default="grpo",
+    )
     return parser
 
 

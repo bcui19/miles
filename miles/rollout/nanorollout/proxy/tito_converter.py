@@ -18,9 +18,15 @@ class ChatConverter:
     ``build_response`` wraps SGLang generate output into an OpenAI
     chat-completion reply."""
 
-    def __init__(self, tokenizer, tool_call_parser: str | None = None):
+    def __init__(self, tokenizer, tool_call_parser: str | None = None, reasoning_parser: str | None = None):
         self.tokenizer = tokenizer
         self.tool_call_parser = tool_call_parser
+        self.reasoning_parser = reasoning_parser
+        self._reasoning_parser_impl = None
+        if reasoning_parser:
+            from sglang.srt.parser.reasoning_parser import ReasoningParser
+
+            self._reasoning_parser_impl = ReasoningParser(reasoning_parser)
 
     def tokenize_new_messages(
         self,
@@ -68,6 +74,10 @@ class ChatConverter:
         completion_tokens = meta_info.get("completion_tokens", 0)
         finish_reason = "length" if meta_info.get("finish_reason", {}).get("type") == "length" else "stop"
 
+        reasoning_content = None
+        if self._reasoning_parser_impl is not None:
+            reasoning_content, text = self._reasoning_parser_impl.parse_non_stream(text)
+
         tool_calls_list = None
         tools = request_data.get("tools")
         if tools and self.tool_call_parser:
@@ -100,6 +110,8 @@ class ChatConverter:
                 logger.warning("TITO tool-call parsing failed: %s", exc)
 
         message = {"role": "assistant", "content": text.strip() if text.strip() else None}
+        if reasoning_content is not None:
+            message["reasoning_content"] = reasoning_content
         if tool_calls_list:
             message["tool_calls"] = tool_calls_list
 

@@ -8,8 +8,9 @@ Registered as the reward post-process hook:
 Each ``episodes[]`` entry of a submitted group is one trajectory: its samples
 (e.g. compaction segments) share one reward and receive one common advantage.
 Advantages are centered (and optionally std-normalized) over the episodes
-within each group. Synthetic padding samples (metadata.padding) are excluded
-and get advantage 0.
+within each group. The optional ``tito_advantage_mode=leave_one_out`` uses a
+leave-one-out baseline. Synthetic padding samples (metadata.padding) are
+excluded and get advantage 0.
 """
 
 from __future__ import annotations
@@ -31,6 +32,43 @@ def _stats(values: list[float]) -> dict[str, float]:
     return compute_statistics(values) | {"std": float(np.std(values))}
 
 
+def _group_advantages(rewards: list[float], mode: str) -> list[float]:
+    if len(rewards) == 1:
+        return [0.0]
+    if mode == "leave_one_out":
+        if len(rewards) == 2:
+            # Degenerate pair groups have only one held-out reward per sample,
+            # so the leave-one-out variance estimate is undefined.
+            return [0.0, 0.0]
+        reward_sum = sum(rewards)
+        return [reward - (reward_sum - reward) / (len(rewards) - 1) for reward in rewards]
+    if mode != "grpo":
+        raise ValueError(f"Unknown advantage mode: {mode!r}")
+    mean = sum(rewards) / len(rewards)
+    return [reward - mean for reward in rewards]
+
+
+def _sample_std(values: list[float]) -> float:
+    if len(values) <= 1:
+        return 0.0
+    mean = sum(values) / len(values)
+    variance = sum((value - mean) ** 2 for value in values) / (len(values) - 1)
+    return variance**0.5
+
+
+def _normalize_group_advantages(rewards: list[float], advantages: list[float], mode: str, eps: float) -> list[float]:
+    if len(rewards) <= 1:
+        return advantages
+    if mode == "leave_one_out":
+        normalized = []
+        for i, advantage in enumerate(advantages):
+            std = _sample_std([reward for j, reward in enumerate(rewards) if j != i])
+            normalized.append(advantage / (std + eps) if std > 0 else advantage)
+        return normalized
+    std = _sample_std(rewards)
+    return [advantage / (std + eps) if std > 0 else advantage for advantage in advantages]
+
+
 def post_process_rewards(args, samples: list[Sample]) -> tuple[list[float], list[float]]:
     raw_rewards = [float(s.reward or 0.0) for s in samples]
 
@@ -50,16 +88,15 @@ def post_process_rewards(args, samples: list[Sample]) -> tuple[list[float], list
             group_episodes.setdefault(sample.group_index, []).append(key)
         episode_reward[key] = reward
 
+    advantage_mode = getattr(args, "tito_advantage_mode", "grpo")
     std_normalize = getattr(args, "grpo_std_normalization", True)
     eps = 1e-6
     episode_advantage: dict[tuple, float] = {}
     for episode_keys in group_episodes.values():
         rewards = [episode_reward[k] for k in episode_keys]
-        mean = sum(rewards) / len(rewards)
-        centered = [r - mean for r in rewards]
+        centered = _group_advantages(rewards, advantage_mode)
         if std_normalize and len(rewards) > 1:
-            std = (sum(c * c for c in centered) / (len(centered) - 1)) ** 0.5
-            centered = [c / (std + eps) for c in centered]
+            centered = _normalize_group_advantages(rewards, centered, advantage_mode, eps)
         for key, advantage in zip(episode_keys, centered, strict=True):
             episode_advantage[key] = advantage
 

@@ -242,3 +242,38 @@ def test_episode_grouped_advantages():
 
     _, adv_norm = post_process_rewards(Namespace(grpo_std_normalization=True), samples)
     assert adv_norm[0] == pytest.approx(0.5 / (0.7071067 + 1e-6), rel=1e-3)
+
+    with pytest.raises(ValueError, match="Unknown advantage mode"):
+        post_process_rewards(Namespace(grpo_std_normalization=True, tito_advantage_mode="bogus"), samples)
+
+
+def test_episode_grouped_leave_one_out_advantages():
+    pair_samples = [_sample(0, 0, 1.0), _sample(0, 1, 0.0)]
+    _raw, pair_adv = post_process_rewards(
+        Namespace(grpo_std_normalization=False, tito_advantage_mode="leave_one_out"),
+        pair_samples,
+    )
+    assert pair_adv == pytest.approx([0.0, 0.0])
+
+    samples = [_sample(0, 0, 1.0), _sample(0, 1, 0.0), _sample(0, 2, 0.0)]
+    raw, adv = post_process_rewards(
+        Namespace(grpo_std_normalization=False, tito_advantage_mode="leave_one_out"),
+        samples,
+    )
+    assert raw == [1.0, 0.0, 0.0]
+    assert adv == pytest.approx([1.0, -0.5, -0.5])
+
+
+def test_episode_grouped_leave_one_out_normalization_matches_nemo():
+    samples = [_sample(0, 0, 0.0), _sample(0, 1, 1.0), _sample(0, 2, 3.0)]
+    _raw, adv = post_process_rewards(
+        Namespace(grpo_std_normalization=True, tito_advantage_mode="leave_one_out"),
+        samples,
+    )
+    assert adv == pytest.approx(
+        [
+            -2.0 / (1.4142135623730951 + 1e-6),
+            -0.5 / (2.1213203435596424 + 1e-6),
+            2.5 / (0.7071067811865476 + 1e-6),
+        ]
+    )

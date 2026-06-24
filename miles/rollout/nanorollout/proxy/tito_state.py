@@ -27,10 +27,18 @@ def derive_assistant_affixes(tokenizer) -> tuple[list[int], list[int]]:
 
 
 def hash_message(message: dict) -> str:
-    """Canonical hash of one chat message. TITO history is immutable: clients
+    """Stable hash of one chat message. TITO history is immutable: clients
     must echo recorded messages verbatim, and the proxy verifies these hashes
     on every request."""
-    return hashlib.sha256(json.dumps(message, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+    return hashlib.sha256(stable_message_json(message).encode("utf-8")).hexdigest()
+
+
+def stable_message_json(message: dict) -> str:
+    return json.dumps(message, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+
+
+def copy_message(message: dict) -> dict:
+    return json.loads(stable_message_json(message))
 
 
 @dataclass
@@ -53,6 +61,7 @@ class TaskState:
     ):
         self.messages: list[MessageItem] = []
         self.message_hashes: list[str] = []  # one per chat message, in order
+        self.message_records: list[dict] = []  # canonical message snapshots for mismatch diagnostics
         self.assistant_prefix_ids = assistant_prefix_ids or []
         self.assistant_suffix_ids = assistant_suffix_ids or []
         # incremental R3 (rollout routing replay) assembly, random_async-style:
@@ -73,6 +82,7 @@ class TaskState:
         logprobs: list[float],
         routed_experts: np.ndarray | None = None,
         msg_hash: str | None = None,
+        msg_record: dict | None = None,
     ) -> None:
         """Append one generated assistant turn, wrapped as prefix + tokens +
         suffix; logprobs are zero-padded over the affixes. ``routed_experts``
@@ -105,6 +115,8 @@ class TaskState:
         )
         if msg_hash is not None:
             self.message_hashes.append(msg_hash)
+        if msg_record is not None:
+            self.message_records.append(copy_message(msg_record))
 
     def get_input_ids(self) -> list[int]:
         input_ids: list[int] = []

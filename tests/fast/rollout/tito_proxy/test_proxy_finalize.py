@@ -7,6 +7,7 @@ from argparse import Namespace
 
 import httpx
 import pytest
+from fastapi import FastAPI, Request
 from stub_stack import StubTokenizer
 from stub_stack import make_stub_sglang as _make_stub_sglang
 from stub_stack import serve as _serve
@@ -23,6 +24,7 @@ def proxy_env(tmp_path_factory):
     artifact_root = tmp_path_factory.mktemp("artifacts")
     sglang_url, sglang_server = _serve(_make_stub_sglang())
     args = Namespace(
+        sglang_reasoning_parser=None,
         sglang_tool_call_parser=None,
         sglang_router_ip="127.0.0.1",
         use_rollout_routing_replay=False,
@@ -38,13 +40,18 @@ def proxy_env(tmp_path_factory):
     sglang_server.should_exit = True
 
 
-def _chat(proxy, task_id, messages):
+def _chat_response(proxy, task_id, messages):
     response = httpx.post(
         f"{proxy.base_url}/chat/completions",
         json={"messages": messages, "max_tokens": 32},
         headers={"Authorization": f"Bearer {task_id}"},
         timeout=30.0,
     )
+    return response
+
+
+def _chat(proxy, task_id, messages):
+    response = _chat_response(proxy, task_id, messages)
     assert response.status_code == 200, response.text
     return response.json()
 
@@ -55,6 +62,138 @@ def _finalize(proxy, task_id, metadata=None):
         json={"task_id": task_id, "metadata": metadata or {}},
         timeout=30.0,
     )
+
+
+def _discard(proxy, task_id):
+    return httpx.post(
+        f"{proxy.base_url.removesuffix('/v1')}/v1/discard",
+        json={"task_id": task_id},
+        timeout=30.0,
+    )
+
+
+def test_proxy_enforces_context_window_without_mutating_rejected_requests(tmp_path):
+    requests = []
+    app = FastAPI()
+    tok = StubTokenizer()
+
+    @app.post("/generate")
+    async def generate(request: Request):
+        body = await request.json()
+        requests.append(body)
+        if body["sampling_params"]["max_new_tokens"] == 3:
+            return {"error": "synthetic generation failure"}
+        output_ids = tok.encode("ok")
+        return {
+            "text": "ok",
+            "meta_info": {
+                "prompt_tokens": len(body["input_ids"]),
+                "completion_tokens": len(output_ids),
+                "finish_reason": {"type": "stop"},
+                "output_token_logprobs": [[-0.5, tid] for tid in output_ids],
+            },
+        }
+
+    messages = [{"role": "system", "content": "sys"}, {"role": "user", "content": "do the thing"}]
+    input_len = len(tok.apply_chat_template(messages, tokenize=True, add_generation_prompt=True))
+    sglang_url, sglang_server = _serve(app)
+
+    def make_proxy(max_model_len: int, artifact_name: str):
+        proxy = TITOProxy(
+            sglang_base_url=sglang_url,
+            tokenizer=tok,
+            args=Namespace(
+                sglang_tool_call_parser=None,
+                sglang_reasoning_parser=None,
+                sglang_router_ip="127.0.0.1",
+                max_model_len=max_model_len,
+                use_rollout_routing_replay=False,
+            ),
+            artifact_root=str(tmp_path / artifact_name),
+        )
+        _wait_healthy(proxy.base_url)
+        return proxy
+
+    clipped_proxy = make_proxy(input_len + 7, "clip")
+    _chat(clipped_proxy, "task-context-clip", messages)
+    assert requests[0]["sampling_params"]["max_new_tokens"] == 7
+
+    exhausted_proxy = make_proxy(input_len - 1, "exhausted")
+    request_count = len(requests)
+
+    first = _chat_response(exhausted_proxy, "task-context-exhausted", messages)
+    assert first.status_code == 400
+    assert first.json()["error"]["type"] == "context_length_exceeded"
+
+    modified_messages = [messages[0], {"role": "user", "content": "do the other thing"}]
+    second = _chat_response(exhausted_proxy, "task-context-exhausted", modified_messages)
+    assert second.status_code == 400
+    assert second.json()["error"]["type"] == "context_length_exceeded"
+    assert len(requests) == request_count
+
+    sglang_error_proxy = make_proxy(input_len + 3, "sglang-error")
+    failed = _chat_response(sglang_error_proxy, "task-sglang-error", messages)
+    assert failed.status_code == 400
+    assert failed.json()["error"]["type"] == "invalid_request_error"
+    assert _finalize(sglang_error_proxy, "task-sglang-error").status_code == 404
+    sglang_server.should_exit = True
+
+
+def test_proxy_returns_exact_openai_usage_counts(tmp_path):
+    requests = []
+    app = FastAPI()
+    tok = StubTokenizer()
+
+    @app.post("/generate")
+    async def generate(request: Request):
+        body = await request.json()
+        requests.append(body)
+        output_ids = tok.encode("ok")
+        return {
+            "text": "ok",
+            "meta_info": {
+                "prompt_tokens": len(body["input_ids"]),
+                "completion_tokens": len(output_ids),
+                "finish_reason": {"type": "stop"},
+                "output_token_logprobs": [[-0.5, tid] for tid in output_ids],
+            },
+        }
+
+    sglang_url, sglang_server = _serve(app)
+    proxy = TITOProxy(
+        sglang_base_url=sglang_url,
+        tokenizer=tok,
+        args=Namespace(
+            sglang_tool_call_parser=None,
+            sglang_reasoning_parser=None,
+            sglang_router_ip="127.0.0.1",
+            max_model_len=None,
+            use_rollout_routing_replay=False,
+        ),
+        artifact_root=str(tmp_path),
+    )
+    _wait_healthy(proxy.base_url)
+
+    task_id = "task-response-clip"
+    messages = [{"role": "system", "content": "sys"}, {"role": "user", "content": "turn one"}]
+    first_response = _chat(proxy, task_id, messages)
+    first = first_response["choices"][0]["message"]["content"]
+    messages += [{"role": "assistant", "content": first}, {"role": "user", "content": "turn two"}]
+    second_response = _chat(proxy, task_id, messages)
+
+    first_usage = first_response["usage"]
+    assert first_usage["prompt_tokens"] == len(requests[0]["input_ids"])
+    assert first_usage["completion_tokens"] == len(tok.encode("ok"))
+    assert first_usage["total_tokens"] == first_usage["prompt_tokens"] + first_usage["completion_tokens"]
+    assert set(first_usage) == {"prompt_tokens", "completion_tokens", "total_tokens"}
+
+    second_usage = second_response["usage"]
+    assert requests[1]["sampling_params"]["max_new_tokens"] == 32
+    assert second_usage["prompt_tokens"] == len(requests[1]["input_ids"])
+    assert second_usage["completion_tokens"] == len(tok.encode("ok"))
+    assert second_usage["total_tokens"] == second_usage["prompt_tokens"] + second_usage["completion_tokens"]
+    assert set(second_usage) == {"prompt_tokens", "completion_tokens", "total_tokens"}
+    sglang_server.should_exit = True
 
 
 def test_single_turn_finalize_round_trip(proxy_env):
@@ -150,6 +289,21 @@ def test_build_response_uses_sglang_tool_call_parser():
     assert call["function"] == {"name": "get_year", "arguments": "{}"}
 
 
+def test_build_response_uses_sglang_reasoning_parser():
+    pytest.importorskip("sglang.srt.parser.reasoning_parser")
+    converter = ChatConverter(StubTokenizer(), reasoning_parser="qwen3")
+
+    response = converter.build_response(
+        {"model": "model"},
+        {"meta_info": {"prompt_tokens": 3, "completion_tokens": 4, "finish_reason": {"type": "stop"}}},
+        "<think>\nreasoning\n</think>\n\nanswer",
+    )
+
+    message = response["choices"][0]["message"]
+    assert message["reasoning_content"] == "\nreasoning\n"
+    assert message["content"] == "answer"
+
+
 def test_routing_replay_covers_full_sequence(tmp_path):
     """R3 chunks (one per generation, rows position-indexed by the stub)
     assemble into experts covering every token: env/affix tokens get real
@@ -158,6 +312,7 @@ def test_routing_replay_covers_full_sequence(tmp_path):
 
     sglang_url, sglang_server = _serve(_make_stub_sglang())
     args = Namespace(
+        sglang_reasoning_parser=None,
         sglang_tool_call_parser=None,
         sglang_router_ip="127.0.0.1",
         use_rollout_routing_replay=True,
@@ -189,6 +344,15 @@ def test_finalize_is_consume_once(proxy_env):
     _chat(proxy, "task-once", [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}])
     assert _finalize(proxy, "task-once").status_code == 200
     assert _finalize(proxy, "task-once").status_code == 404
+
+
+def test_discard_consumes_without_artifact(proxy_env):
+    proxy, _ = proxy_env
+    _chat(proxy, "task-discard", [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}])
+    discard = _discard(proxy, "task-discard")
+    assert discard.status_code == 200, discard.text
+    assert discard.json() == {"ok": True, "discarded": True}
+    assert _finalize(proxy, "task-discard").status_code == 404
 
 
 def test_finalize_unknown_task_404(proxy_env):

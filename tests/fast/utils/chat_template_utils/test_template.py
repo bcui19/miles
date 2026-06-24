@@ -66,7 +66,12 @@ def _make_serving(tokenizer) -> OpenAIServingChat:
     # (encode("") non-empty) to decide add_special_tokens at the chat-template
     # encode site. __init__ always sets this; mirror it here so _process_messages
     # takes the real production path instead of hitting AttributeError.
-    serving._tokenizer_auto_adds_specials = len(tokenizer.encode("")) > 0
+    try:
+        # SGLang normally initializes this in OpenAIServingChat.__init__; the test
+        # bypasses __init__, so mirror the current SGLang heuristic here.
+        serving._tokenizer_auto_adds_specials = len(tokenizer.encode("")) > 0
+    except Exception:
+        serving._tokenizer_auto_adds_specials = True
     return serving
 
 

@@ -34,7 +34,9 @@ def main() -> None:
         default=None,
         help="Override chat template (e.g. a keep-think/verbatim variant so re-rendered history matches generated tokens).",
     )
+    parser.add_argument("--reasoning-parser", type=str, default=None)
     parser.add_argument("--tool-call-parser", type=str, default=None)
+    parser.add_argument("--max-model-len", type=int, default=None)
     parser.add_argument("--use-rollout-routing-replay", action="store_true", default=False)
     parser.add_argument("--num-layers", type=int, default=None)
     parser.add_argument("--moe-router-topk", type=int, default=None)
@@ -47,8 +49,10 @@ def main() -> None:
     tokenizer = load_tokenizer(cli.hf_checkpoint, chat_template_path=cli.chat_template_path, trust_remote_code=True)
 
     proxy_args = Namespace(
+        sglang_reasoning_parser=cli.reasoning_parser,
         sglang_tool_call_parser=cli.tool_call_parser,
         sglang_router_ip=cli.host,
+        max_model_len=cli.max_model_len,
         use_rollout_routing_replay=cli.use_rollout_routing_replay,
         num_layers=cli.num_layers,
         moe_router_topk=cli.moe_router_topk,
