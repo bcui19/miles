@@ -1,0 +1,157 @@
+# NVIDIA NeMo-RL sliding-puzzle GRPO reproduction.
+#
+# Run:
+#   python3 runners/grpo_runner.py packages/miles/examples/nanorollout/sliding_puzzle_grpo.yaml
+
+run:
+  repo: ${oc.env:REPO,/root/tttt}
+  shared: ${oc.env:SHARED,/root/shared_data/sliding-puzzle-grpo}
+
+paths:
+  megatron_path: ${oc.env:MEGATRON_PATH,/root/Megatron-LM}
+
+hardware:
+  total_gpus: 8
+  master_addr: ${oc.env:MASTER_ADDR,127.0.0.1}
+
+model:
+  id: Qwen/Qwen2.5-1.5B-Instruct
+  dir: ${oc.env:MODEL_DIR,/root/models/Qwen2.5-1.5B-Instruct}
+  args_file: "{miles_src}/scripts/models/qwen2.5-1.5B.sh"
+  download: true
+
+training:
+  steps: 120
+  rollout_batch_size: 32
+  group_size: 16
+  episode_concurrency: 512
+  eval_interval: 10
+
+experiment:
+  dataset_path: "{data_dir}/sliding_puzzle_{dataset_len}.jsonl"
+  eval_dataset_path: "{data_dir}/sliding_puzzle_eval_{eval_samples}.jsonl"
+  eval_name: sliding_puzzle
+  max_rollout_turns: 50
+  puzzle_size: 5
+  shuffle_moves: 10
+  max_moves: 30
+  eval_samples: 256
+
+wandb:
+  enabled: true
+  require_api_key: true
+  project: miles-sliding-puzzle-grpo
+
+ray:
+  mode: single_node
+
+miles:
+  enabled: true
+  args:
+    hf-checkpoint: "{model_dir}"
+    load: "{model_dir}"
+    ref-load: "{model_dir}"
+    megatron-to-hf-mode: bridge
+    save: "{checkpoints_dir}"
+    save-interval: 10
+    prompt-data: "{dataset_path}"
+    input-key: prompt
+    num-rollout: "{train_steps}"
+    rollout-batch-size: "{rollout_batch_size}"
+    n-samples-per-prompt: "{group_size}"
+    rollout-max-response-len: 1024
+    rollout-max-context-len: 1024
+    rollout-temperature: 1.0
+    rollout-top-p: 0.999
+    rollout-top-k: 10000
+    global-batch-size: "{global_batch_size}"
+    micro-batch-size: 4
+    seed: 42
+    disable-rollout-global-dataset: true
+    optimizer: adam
+    lr: 5e-6
+    min-lr: 5e-7
+    lr-warmup-init: 5e-7
+    lr-warmup-iters: 50
+    lr-decay-style: constant
+    lr-decay-iters: "{steps}"
+    weight-decay: 0.01
+    adam-beta1: 0.9
+    adam-beta2: 0.999
+    advantage-estimator: grpo
+    tito-advantage-mode: leave_one_out
+    use-kl-loss: true
+    kl-loss-coef: 0.01
+    kl-loss-type: low_var_kl
+    entropy-coef: 0.00
+    eps-clip: 0.2
+    eps-clip-high: 0.2
+    calculate-per-token-loss: true
+    train-backend: megatron
+    tensor-model-parallel-size: 1
+    pipeline-model-parallel-size: 1
+    context-parallel-size: 1
+    expert-model-parallel-size: 1
+    expert-tensor-parallel-size: 1
+    attention-dropout: 0.0
+    hidden-dropout: 0.0
+    accumulate-allreduce-grads-in-fp32: true
+    attention-softmax-in-fp32: true
+    attention-backend: flash
+    update-weight-buffer-size: 536870912
+    rollout-num-gpus: 4
+    rollout-num-gpus-per-engine: 1
+    sglang-mem-fraction-static: 0.6
+    sglang-chunked-prefill-size: 1024
+    sglang-server-concurrency: "{episode_concurrency}"
+    sglang-disable-radix-cache: true
+    actor-num-nodes: 1
+    actor-num-gpus-per-node: 4
+    num-gpus-per-node: "{total_gpus}"
+    rollout-function-path: miles.rollout.train_service.train_buffer.generate_rollout
+    custom-reward-post-process-path: miles.rollout.train_service.advantages.post_process_rewards
+    train-buffer-pad-multiple: 4
+
+nanorollout:
+  enabled: true
+  concurrency: "{episode_concurrency}"
+
+tito:
+  args:
+    - --max-model-len
+    - "1024"
+
+orchestrator:
+  args:
+    dataset: "{dataset_path}"
+    steps: "{steps}"
+    rollout-batch-size: "{rollout_batch_size}"
+    group-size: "{group_size}"
+    episode-concurrency: "{episode_concurrency}"
+    wait: weights
+    model-name: "{model_id}"
+    run-id: "{run_id}"
+    eval-dataset: "{eval_dataset_path}"
+    eval-interval: "{eval_interval}"
+    eval-name: "{eval_name}"
+    eval-breakdown-metadata-path: game_config.size
+    eval-breakdown-name: size
+
+prepare_commands:
+  - >-
+    {python} -m examples.nanorollout.sliding_puzzle_make_dataset
+    --output {dataset_path}
+    --length {dataset_len}
+    --size {puzzle_size}
+    --shuffle-moves {shuffle_moves}
+    --max-moves {max_moves}
+    --max-rollout-turns {max_rollout_turns}
+  - >-
+    {python} -m examples.nanorollout.sliding_puzzle_make_dataset
+    --output {eval_dataset_path}
+    --length {eval_samples}
+    --start-index {dataset_len}
+    --size {puzzle_size}
+    --shuffle-moves {shuffle_moves}
+    --max-moves {max_moves}
+    --max-rollout-turns {max_rollout_turns}
