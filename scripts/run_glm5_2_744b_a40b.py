@@ -1,5 +1,5 @@
 """
-GLM-5 744B-A40B Training Script
+GLM-5.2 744B-A40B Training Script
 
 =====================
 
@@ -7,22 +7,26 @@ Tested on H200, B200, GB300
 
 Please use the `radixark/miles:dev` docker image.
 
+GLM-5.2 shares GLM-5's glm_moe_dsa architecture (DSA + cross-layer index sharing);
+this script differs from run_glm5_744b_a40b.py only in the checkpoint it loads, the
+glm5.2 megatron model args (rotary-base 8000000), and the GLM-5.2 rollout recipe
+(FP8 KV cache, flashmla_kv decode, 4-step EAGLE). Config follows the upstream slime
+`run-glm5.2-744B-A40B.sh` recipe.
+
 =====================
 
 Args:
   --model-name: Model variant to use.
-      GLM-5         Full 744B model (requires >=16 nodes)
-      GLM-5_4layer  4-layer pruned model (single-node testing)
-      GLM-5_20layer 20-layer pruned model (multi-node testing)
+      GLM-5.2        Full 744B model (requires >=16 nodes)
+      GLM-5.2_5layer 5-layer pruned model (single-node testing)
   --num-nodes: Number of nodes for training. Determines parallelism config:
-      1  -> for GLM-5_4layer minimal test
-      6  -> for GLM-5_20layer multi-node test
-      16+-> for full GLM-5 model
+      1   -> for GLM-5.2_5layer minimal test
+      16+ -> for full GLM-5.2 model
   --num-gpus-per-node: GPUs per node (default: 8)
   --mode: "normal" or "debug_minimal" (shorter response length for quick testing)
   --fp8-rollout: Enable FP8 rollout (converts HF checkpoint to FP8 block quant for sglang; megatron still uses bf16)
   --enable-eval: Enable evaluation every 20 steps
-  --enable-mtp: Enable multi-token prediction (EAGLE speculative decoding)
+  --enable-mtp: Enable multi-token prediction (EAGLE speculative decoding; full model only, MTP layer is pruned away)
   --enable-optimizer-offload: Offload optimizer to CPU
   --data-dir: Directory for datasets (default: /root/datasets, shared NFS)
   --model-dir: Directory for model weights and converted checkpoints (default: /root/models, shared NFS)
@@ -31,26 +35,24 @@ Args:
 =====================
 
 I. Usage for single node minimal test:
-  `python scripts/run_glm5_744b_a40b.py full-train --model-name GLM-5_4layer --num-nodes 1`
+  `python scripts/run_glm5_2_744b_a40b.py full-train --model-name GLM-5.2_5layer --num-nodes 1`
 
 =====================
 
-II. Usage for multi node (20 layers, 6 nodes as an example):
+II. Usage for full model (>=16 nodes):
 
   1. Setup containers on all nodes
 
   2. Start Ray cluster on all nodes
 
-  3. Download model/data + validate checkpoint + convert to megatron.
-     Run on **head node**; megatron conversion uses Ray to coordinate multi-node work.
-       `python scripts/run_glm5_744b_a40b.py prepare --model-name GLM-5_20layer --num-nodes 6`
+  3. Download model/data + validate checkpoint + convert to megatron (run on head node).
+       `python scripts/run_glm5_2_744b_a40b.py prepare --model-name GLM-5.2 --num-nodes 32 --fp8-rollout`
 
   4. (Optional) Copy model from shared NFS to local disk on each node.
-     Run independently on every node.
-       python scripts/run_glm5_744b_a40b.py prepare-cp --model-name GLM-5_20layer --num-nodes 6
+       python scripts/run_glm5_2_744b_a40b.py prepare-cp --model-name GLM-5.2 --num-nodes 32
 
   5. Run training. Execute on head node; uses Ray internally for distributed training.
-       python scripts/run_glm5_744b_a40b.py train --model-name GLM-5_20layer --num-nodes 6
+       python scripts/run_glm5_2_744b_a40b.py train --model-name GLM-5.2 --num-nodes 32 --fp8-rollout --enable-mtp
 """
 
 import json
@@ -71,8 +73,8 @@ class ScriptArgs(U.ExecuteTrainConfig):
     mode: Literal["normal", "debug_minimal"] = "normal"
     run_id: str = U.create_run_id()
     model_org: str = "zai-org"
-    model_name: str = "GLM-5"
-    megatron_model_type: str = "glm5-744B-A40B"
+    model_name: str = "GLM-5.2"
+    megatron_model_type: str = "glm5.2-744B-A40B"
     num_gpus_per_node: int = 8
     fp8_rollout: bool = False
     use_deepep: bool = True
@@ -101,11 +103,11 @@ class ScriptArgs(U.ExecuteTrainConfig):
             self.mode = "debug_minimal"
 
         if (m := re.search(r"(\d+)layer", self.model_name)) is not None:
-            self.megatron_model_type = f"glm5-744B-A40B_{m.group(1)}layer"
+            self.megatron_model_type = f"glm5.2-744B-A40B_{m.group(1)}layer"
 
-        if self.model_name == "GLM-5":
+        if self.model_name == "GLM-5.2":
             self.model_org = "zai-org"
-        elif self.model_name in ["GLM-5_4layer", "GLM-5_20layer"]:
+        elif self.model_name == "GLM-5.2_5layer":
             self.model_org = "Pinaster"
         else:
             raise NotImplementedError(f"{self.model_name} is not supported")
@@ -116,7 +118,7 @@ def _is_pruned(args: ScriptArgs):
 
 
 def _validate_glm_checkpoint(args: ScriptArgs):
-    """Validate the basic native GLM-5 config fields."""
+    """Validate the basic native GLM-5.2 config fields."""
     config_path = Path(args.model_dir) / args.model_name / "config.json"
     if not config_path.exists():
         raise FileNotFoundError(f"{config_path} not found")
@@ -124,7 +126,7 @@ def _validate_glm_checkpoint(args: ScriptArgs):
     with open(config_path) as f:
         config = json.load(f)
 
-    if args.model_name == "GLM-5":
+    if args.model_name == "GLM-5.2":
         expected_num_layers = 78
     elif (m := re.search(r"(\d+)layer", args.model_name)) is not None:
         expected_num_layers = int(m.group(1))
@@ -137,7 +139,7 @@ def _validate_glm_checkpoint(args: ScriptArgs):
         or config.get("num_hidden_layers") != expected_num_layers
     ):
         raise RuntimeError(
-            f"{config_path} must use native GLM-5 config with "
+            f"{config_path} must use native GLM-5.2 config with "
             f"model_type=glm_moe_dsa, architectures=[GlmMoeDsaForCausalLM], "
             f"and num_hidden_layers={expected_num_layers}"
         )
@@ -169,18 +171,20 @@ def _prepare_megatron_ckpt(args: ScriptArgs):
     num_nodes = None
 
     num_layers_match = re.search(r"(\d+)layer", args.model_name)
-    if num_layers_match and int(num_layers_match.group(1)) <= 4:
+    if num_layers_match and int(num_layers_match.group(1)) <= 5:
+        # Pruned model converts on a single GPU: EP=1 holds all experts, and PP=1 keeps
+        # the one pipeline stage starting on a computing layer (DSA cross-layer index
+        # sharing forbids a stage starting on a skip layer). nproc=1 also avoids the
+        # convert tool's PP auto-bump (which would split onto a skip layer).
         extra_args += "--pipeline-model-parallel-size 1 " "--expert-model-parallel-size 1 "
-        num_gpus_per_node = min(4, num_gpus_per_node)
+        num_gpus_per_node = 1
         multinode = False
-    elif num_layers_match:
-        extra_args += "--expert-model-parallel-size 4 "
-        num_nodes = 2
     else:
         extra_args += (
             "--pipeline-model-parallel-size 4 "
             "--expert-model-parallel-size 32 "
-            "--decoder-last-pipeline-num-layers 18 "
+            "--decoder-first-pipeline-num-layers 18 "
+            "--decoder-last-pipeline-num-layers 20 "
         )
 
     U.convert_checkpoint(
@@ -242,7 +246,7 @@ def _execute_train(args: ScriptArgs):
     if (args.mode != "debug_minimal") and args.enable_eval:
         eval_args += "--eval-interval 20 " "--eval-top-p 1 "
 
-    if args.num_nodes == 1:  # minimal test for 4 layers model
+    if args.num_nodes == 1:  # minimal test for the 5-layer model
         perf_args = (
             "--tensor-model-parallel-size 4 "
             "--sequence-parallel "
@@ -251,23 +255,19 @@ def _execute_train(args: ScriptArgs):
             f"--expert-model-parallel-size {args.num_gpus_per_node} "
             "--expert-tensor-parallel-size 1 "
         )
-    elif args.num_nodes == 6:  # for 20 layers model, to test multi-node
+    elif args.num_nodes >= 16:  # slime's setting for the full model
+        # TP=4 * PP=8 * CP=8 = 256 GPUs (32 nodes) for one training group; EP=32.
+        # DSA cross-layer index sharing needs every pipeline stage to START on a
+        # computing layer (index_topk_freq=4, index_skip_topk_offset=3 -> computing
+        # layers 1,2,3,7,11,...,75). first=14, last=16 leaves 6 middle stages of 8;
+        # stage starts land on global layers 1,15,23,31,39,47,55,63 -- all computing.
         perf_args = (
             "--tensor-model-parallel-size 4 "
             "--sequence-parallel "
-            "--pipeline-model-parallel-size 3 "
-            "--decoder-last-pipeline-num-layers 6 "
-            "--context-parallel-size 1 "
-            "--expert-model-parallel-size 16 "
-            "--expert-tensor-parallel-size 1 "
-        )
-    elif args.num_nodes >= 16:  # slime's setting for full model
-        perf_args = (
-            "--tensor-model-parallel-size 4 "
-            "--sequence-parallel "
-            "--pipeline-model-parallel-size 4 "
-            "--decoder-last-pipeline-num-layers 18 "
-            "--context-parallel-size 2 "
+            "--pipeline-model-parallel-size 8 "
+            "--decoder-first-pipeline-num-layers 14 "
+            "--decoder-last-pipeline-num-layers 16 "
+            "--context-parallel-size 8 "
             "--expert-model-parallel-size 32 "
             "--expert-tensor-parallel-size 1 "
         )
@@ -281,9 +281,9 @@ def _execute_train(args: ScriptArgs):
         "--recompute-num-layers 1 "
         # ------------
         "--use-dynamic-batch-size "
-        f"--max-tokens-per-gpu {2048 if _is_pruned(args) else 16384} "
-        "--data-pad-size-multiplier 4096 "
-        "--log-probs-chunk-size 1024 "
+        f"--max-tokens-per-gpu {2048 if _is_pruned(args) else 8192} "
+        "--data-pad-size-multiplier 1024 "
+        "--log-probs-chunk-size 16384 "
     )
 
     grpo_args = (
@@ -294,6 +294,10 @@ def _execute_train(args: ScriptArgs):
         "--entropy-coef 0.00 "
         "--eps-clip 0.2 "
         "--eps-clip-high 0.28 "
+        # GLM-5.2 recipe uses truncated importance sampling
+        "--use-tis "
+        "--tis-clip-low 0.5 "
+        "--tis-clip 2.0 "
     )
 
     optimizer_args = (
@@ -315,7 +319,6 @@ def _execute_train(args: ScriptArgs):
             sglang_world_size = 16
         else:
             sglang_world_size = 64
-
     else:
         sglang_decode_max_bs = 256
         sglang_world_size = min(8, args.num_gpus_per_node)
@@ -332,24 +335,27 @@ def _execute_train(args: ScriptArgs):
     if args.fp8_rollout and args.use_deepep:
         sglang_args += "--sglang-moe-a2a-backend deepep " "--sglang-deepep-mode auto "
     if args.enable_mtp:
+        # EAGLE using the model's own next-token-prediction layer (full GLM-5.2 only;
+        # the MTP layer is stripped from the pruned checkpoints).
         sglang_args += (
             "--sglang-speculative-algorithm EAGLE "
-            "--sglang-speculative-num-steps 3 "
+            "--sglang-speculative-num-steps 4 "
             "--sglang-speculative-eagle-topk 1 "
-            "--sglang-speculative-num-draft-tokens 4 "
+            "--sglang-speculative-num-draft-tokens 5 "
+            "--sglang-speculative-draft-attention-backend nsa "
         )
     if args.enable_pd:
         sglang_args += "--prefill-num-servers 1 "
     sglang_args += (
-        # use flashmla backend for better precision
-        "--sglang-nsa-decode-backend flashmla_sparse "
+        "--sglang-kv-cache-dtype fp8_e4m3 "
+        # flashmla_kv decode / flashmla_sparse prefill (GLM-5.2 recipe)
+        "--sglang-nsa-decode-backend flashmla_kv "
         "--sglang-nsa-prefill-backend flashmla_sparse "
-        "--sglang-kv-cache-dtype bf16 "
         "--sglang-attention-backend nsa "
         "--sglang-page-size 64 "
         f"--sglang-cuda-graph-max-bs {sglang_decode_max_bs} "
         # concurrency
-        f"--sglang-max-running-requests 512 "
+        "--sglang-max-running-requests 512 "
         f"--sglang-chunked-prefill-size {2048 * sglang_world_size} "
         "--sglang-watchdog-timeout 3600 "
     )
@@ -360,7 +366,7 @@ def _execute_train(args: ScriptArgs):
         else:
             sglang_args += "--sglang-moe-runner-backend triton "
     sglang_extra_env_vars = {
-        "SGLANG_DEEPEP_NUM_MAX_DISPATCH_TOKENS_PER_RANK": f"{32 if args.enable_pd else 256}",
+        "SGLANG_DEEPEP_NUM_MAX_DISPATCH_TOKENS_PER_RANK": f"{64 if args.enable_pd else 256}",
         "SGLANG_NSA_FORCE_MLA": "1",
     }
 
@@ -373,6 +379,8 @@ def _execute_train(args: ScriptArgs):
         "--attention-softmax-in-fp32 "
         # need to comment this when using model with MLA
         "--attention-backend flash "
+        # DSA + context parallel uses the sequential allgather-CP layout; the
+        # index-share provider gathers index_k/kv across the CP group to match.
         "--allgather-cp "
         # ------------
         f"--update-weight-buffer-size {2 * 1024 ** 3} "
